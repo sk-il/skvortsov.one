@@ -183,11 +183,6 @@ header .logo {
     height: auto;
 }
 
-.tableau-section {
-    padding: 30px 30px 0;
-    text-align: center;
-}
-
 .tableauPlaceholder {
     width: 100% !important;
     max-width: 1200px !important;
@@ -198,6 +193,202 @@ header .logo {
 .tableauPlaceholder iframe {
     width: 100% !important;
     max-width: 100% !important;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.experience-section {
+    padding: 78px 30px 88px;
+}
+
+.experience-shell {
+    width: min(100%, 1200px);
+    margin: 0 auto;
+}
+
+.experience-shell > h2 {
+    margin-bottom: 22px;
+    font-size: 35px;
+    font-weight: 600;
+}
+
+.experience-chart-body {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    width: 100%;
+}
+
+.experience-row-labels,
+.experience-plot {
+    position: relative;
+    height: 340px;
+}
+
+.experience-row-label {
+    position: absolute;
+    left: 0;
+    transform: translateY(-50%);
+    font-size: 17px;
+    line-height: 1.2;
+}
+
+.experience-row-full-time {
+    top: 83px;
+}
+
+.experience-row-part-time {
+    top: 183px;
+}
+
+.experience-row-education {
+    top: 283px;
+}
+
+.experience-plot {
+    min-width: 0;
+}
+
+.experience-tick {
+    position: absolute;
+    top: 36px;
+    bottom: 47px;
+    left: var(--tick-position);
+    border-left: 1px dashed #d4d4d4;
+}
+
+.experience-tick-label {
+    position: absolute;
+    bottom: -36px;
+    left: 0;
+    transform: translateX(-50%);
+    color: #4a4a4a;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.experience-tick:first-child .experience-tick-label {
+    transform: none;
+}
+
+.experience-tick.is-today .experience-tick-label {
+    transform: translateX(-100%);
+    font-weight: 600;
+}
+
+.experience-tick-label-short {
+    display: none;
+}
+
+.experience-bar {
+    position: absolute;
+    left: var(--bar-left, 0%);
+    z-index: 1;
+    width: var(--bar-width, 0%);
+    min-width: 4px;
+    height: 30px;
+    border-radius: 999px;
+    background: var(--bar-color);
+}
+
+.experience-bar-full-time {
+    top: 68px;
+}
+
+.experience-bar-part-time {
+    top: 168px;
+}
+
+.experience-bar-education {
+    top: 268px;
+}
+
+.experience-bar-label {
+    position: absolute;
+    top: -31px;
+    left: 0;
+    color: var(--bar-color);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.experience-bar-game-forest,
+.experience-swatch-game-forest {
+    --bar-color: #58a24f;
+}
+
+.experience-bar-skyeng,
+.experience-swatch-skyeng {
+    --bar-color: #4f7fac;
+}
+
+.experience-bar-yandex,
+.experience-swatch-yandex {
+    --bar-color: #e8b900;
+}
+
+.experience-bar-smartcat,
+.experience-swatch-smartcat {
+    --bar-color: #ae78a3;
+}
+
+.experience-bar-rextag,
+.experience-swatch-rextag {
+    --bar-color: #f6871f;
+}
+
+.experience-bar-practicum,
+.experience-swatch-practicum {
+    --bar-color: #656a73;
+}
+
+.experience-legend {
+    display: none;
+    list-style: none;
+}
+
+.experience-legend li {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+}
+
+.experience-swatch {
+    width: 12px;
+    height: 12px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: var(--bar-color);
+}
+
+.experience-legend strong,
+.experience-legend small {
+    display: block;
+}
+
+.experience-legend strong {
+    line-height: 1.3;
+}
+
+.experience-legend small {
+    margin-top: 2px;
+    color: #666;
+    font-size: 13px;
+    line-height: 1.3;
 }
 
 #portfolio {
@@ -438,9 +629,95 @@ footer a {
         max-width: 300px;
     }
 
-    .tableau-section {
-        padding-right: 20px;
-        padding-left: 20px;
+    .experience-section {
+        padding: 60px 20px 68px;
+    }
+
+    .experience-shell > h2 {
+        margin-bottom: 18px;
+        font-size: 31px;
+    }
+
+    .experience-chart-body {
+        grid-template-columns: 78px minmax(0, 1fr);
+    }
+
+    .experience-row-labels,
+    .experience-plot {
+        height: 288px;
+    }
+
+    .experience-row-label {
+        padding-right: 8px;
+        font-size: 14px;
+    }
+
+    .experience-row-full-time {
+        top: 63px;
+    }
+
+    .experience-row-part-time {
+        top: 143px;
+    }
+
+    .experience-row-education {
+        top: 223px;
+    }
+
+    .experience-tick {
+        top: 24px;
+        bottom: 40px;
+    }
+
+    .experience-tick.is-july,
+    .experience-tick.is-near-end {
+        display: none;
+    }
+
+    .experience-tick-label {
+        bottom: -29px;
+        font-size: 11px;
+    }
+
+    .experience-tick:first-child .experience-tick-label {
+        transform: translateX(-25%);
+    }
+
+    .experience-tick-label-long {
+        display: none;
+    }
+
+    .experience-tick-label-short {
+        display: inline;
+    }
+
+    .experience-bar {
+        height: 26px;
+    }
+
+    .experience-bar-full-time {
+        top: 50px;
+    }
+
+    .experience-bar-part-time {
+        top: 130px;
+    }
+
+    .experience-bar-education {
+        top: 210px;
+    }
+
+    .experience-bar-label {
+        display: none;
+    }
+
+    .experience-legend {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px 24px;
+        margin-top: 28px;
+        padding-top: 24px;
+        border-top: 1px solid #dedede;
     }
 
     #portfolio {
@@ -500,5 +777,15 @@ footer a {
 
     .main-page h2 {
         font-size: 31px;
+    }
+
+    .experience-section {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    .experience-legend {
+        grid-template-columns: 1fr;
+        gap: 14px;
     }
 }
