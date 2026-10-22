@@ -75,8 +75,8 @@ function render(){
  for(const r of rows){
   const tr=el('tr',undefined,'data-row');const cells=labelsHead.map(label=>{const td=el('td');td.dataset.label=label;tr.append(td);return td;});
   const moment=movementMoment(r),status=rowStatus(r,day);
-  const date=el('span',moment.day.split('-').reverse().join('.'),'movement-date '+(moment.kind==='actual'?'actual':'planned'));
-  cells[0].append(date);if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock '+(moment.kind==='actual'?'actual':'planned')));
+  const date=el('span',moment.day.split('-').reverse().join('.'),'movement-date state-'+status);
+  cells[0].append(date);if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock state-'+status));
   const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[1].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
   place(cells[2],r.counterpart_port,r.counterpart_terminal);
   place(cells[3],r.port,r.terminal);
