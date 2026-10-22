@@ -1,11 +1,12 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus} from './model.mjs';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment} from './model.mjs?v=2';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
 let data,state=readState(location.search),day=today();
 const fullDate=v=>v?new Intl.DateTimeFormat('ru',{timeZone:'Europe/Kaliningrad',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'нет данных';
 const shortDate=v=>v?new Intl.DateTimeFormat('ru',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(v+'T12:00:00Z')):'—';
-const timeText=(day,clock)=>`${shortDate(day)}${clock?' · '+clock.slice(0,5):' · время не указано'}`;
+const timeText=(day,clock)=>`${shortDate(day)}${clock?' · '+clock.slice(0,5):''}`;
+function place(cell,port,terminal){cell.append(el('span',port||'—'));if(terminal){const badge=el('span',terminal,'badge');badge.style.setProperty('--badge',colors[terminal]||'#526e88');cell.append(el('br'),badge);}else cell.append(el('span','терминал не указан','sub'));}
 function update(patch,replace=false){state={...state,...patch};const q=stateQuery(state);history[replace?'replaceState':'pushState'](null,'',location.pathname+(q?'?'+q:''));render();}
 function selectOptions(id,field){const select=$(id);for(const value of [...new Set(data.movements.map(r=>r[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru')))select.add(new Option(value,value));}
 function initialize(){
@@ -16,6 +17,7 @@ function initialize(){
  for(const [id,name] of [...lines].sort((a,b)=>a[1].localeCompare(b[1],'ru'))){const label=el('label');const input=el('input');input.type='checkbox';input.value=id;input.addEventListener('change',()=>update({lines:[...$('line-options').querySelectorAll('input:checked')].map(i=>i.value)}));label.append(input,document.createTextNode(name));$('line-options').append(label);}
  for(const id of ['port','terminal','operator','counterpart','type','status','sort','from','to'])$(id).addEventListener('change',()=>update({[id]:$(id).value}));
  $('query').addEventListener('input',()=>update({q:$('query').value},true));
+ $('include-removed').addEventListener('change',()=>update({include_removed:$('include-removed').checked?'1':''}));
  document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>update({tab:b.dataset.tab})));
  document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>update({period:b.dataset.period,...(b.dataset.period==='custom'?{from:state.from||day,to:state.to||day}:{from:'',to:''})})));
  $('our-lines').addEventListener('click',()=>update({lines:ours()?[]:[...data.our_lines]}));
@@ -46,6 +48,7 @@ function render(){
  $('rows').setAttribute('aria-labelledby',state.tab+'-tab');
  document.querySelectorAll('[data-period]').forEach(b=>b.classList.toggle('active',b.dataset.period===state.period));
  $('dates').hidden=state.period!=='custom';$('our-lines').setAttribute('aria-pressed',ours());
+ $('include-removed').checked=state.include_removed==='1';
  for(const id of ['port','terminal','operator','counterpart','type','status','sort','from','to']){
   const input=$(id);if(input.tagName==='SELECT'&&state[id]&&![...input.options].some(o=>o.value===state[id]))input.add(new Option(state[id]+' (нет данных)',state[id]));input.value=state[id];
  }
@@ -53,43 +56,47 @@ function render(){
  document.querySelectorAll('#line-options input').forEach(i=>i.checked=state.lines.includes(i.value));
  $('line-summary').textContent=!state.lines.length?'Все линии':ours()?'Наши линии':`Выбрано: ${state.lines.length}`;
  $('counterpart-label').firstChild.textContent=state.tab==='arrival'?'Откуда':'Куда';
- if(['terminal','operator','counterpart','type','status'].some(k=>state[k])){$('advanced').hidden=false;$('more').setAttribute('aria-expanded','true');}
+ if(['terminal','operator','counterpart','type','status','include_removed'].some(k=>state[k])){$('advanced').hidden=false;$('more').setAttribute('aria-expanded','true');}
  $('date-error').textContent=dateRange(state,day)?'':'Укажите корректный период: начало не позже окончания.';
  const chips=$('chips');chips.replaceChildren();
  const labels={port:'Район',terminal:'Терминал',operator:'Оператор',counterpart:state.tab==='arrival'?'Откуда':'Куда',type:'Тип',status:'Статус',q:'Поиск'};
  for(const [k,label] of Object.entries(labels))if(state[k]){const b=el('button',`${label}: ${k==='status'?statusNames[state[k]]||state[k]:state[k]} ×`);b.addEventListener('click',()=>update({[k]:''}));chips.append(b);}
  for(const id of state.lines){const name=data.movements.find(r=>r.line_id===id)?.line_name||id;const b=el('button',name+' ×');b.addEventListener('click',()=>update({lines:state.lines.filter(x=>x!==id)}));chips.append(b);}
+ if(state.include_removed){const b=el('button','Включая отсутствующие в расписании ×');b.addEventListener('click',()=>update({include_removed:''}));chips.append(b);}
  if(chips.children.length){const reset=el('button','Сбросить фильтры','reset');reset.addEventListener('click',resetFilters);chips.append(reset);}
  const rows=filterRows(data.movements,state,day);
  $('count').textContent=`${state.tab==='arrival'?'Прибытий':'Отправлений'}: ${rows.length} · ${new Set(rows.map(r=>r.vessel)).size} судов`;
  const target=$('rows');target.replaceChildren();
  if(!rows.length){const empty=el('div',undefined,'empty');empty.append(el('h2','По этим условиям записей нет'),el('p','Измените период или фильтры. Это не означает, что движения судов нет.'));const b=el('button','Ближайшие 14 дней · все линии');b.addEventListener('click',()=>update({...defaults,tab:state.tab,lines:[],period:'14'}));empty.append(b);target.append(empty);return;}
  const table=el('table'),head=el('thead'),hr=el('tr');
- const labelsHead=['ПЛАН','ОЖИДАЕТСЯ / ФАКТ','СУДНО / РЕЙС',state.tab==='arrival'?'ОТКУДА':'КУДА',state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ','ЛИНИЯ / ОПЕРАТОР','СТАТУС'];
+ const labelsHead=['ДАТА И ВРЕМЯ','СУДНО / РЕЙС',state.tab==='arrival'?'ОТКУДА':'КУДА',state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ','ЛИНИЯ / ОПЕРАТОР','СТАТУС'];
  labelsHead.forEach(t=>{const th=el('th',t);th.scope='col';hr.append(th);});head.append(hr);table.append(head);
- const body=el('tbody');let lastDay='';
+ const body=el('tbody');
  for(const r of rows){
-  if(r.scheduled_date!==lastDay){lastDay=r.scheduled_date;const row=el('tr',undefined,'date-row'),th=el('th',shortDate(lastDay)+(lastDay===day?' · сегодня':''));th.colSpan=7;th.scope='rowgroup';row.append(th);body.append(row);}
   const tr=el('tr',undefined,'data-row');const cells=labelsHead.map(label=>{const td=el('td');td.dataset.label=label;tr.append(td);return td;});
-  cells[0].append(el('span',r.scheduled_time?r.scheduled_time.slice(0,5):'—','time'));if(!r.scheduled_time)cells[0].append(el('span','время не указано','sub'));
-  cells[1].append(el('span','—','unknown'),el('span','нет данных','sub'));
-  const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[2].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
-  cells[3].append(el('span',r.counterpart_port||'—'));
-  cells[4].append(el('span',r.port));if(r.terminal){const badge=el('span',r.terminal,'badge');badge.style.setProperty('--badge',colors[r.terminal]||'#526e88');cells[4].append(el('br'),badge);}else cells[4].append(el('span','терминал не указан','sub'));
-  cells[5].append(el('span',r.operator,'operator'),el('span',r.line_name.replace(r.operator+' · ',''),'sub'));
-  const status=rowStatus(r,day);cells[6].append(el('span',statusNames[status],'status '+status));if(r.discrepancy&&status!=='conflict')cells[6].append(el('span','Есть расхождения','sub conflict'));
+  const moment=movementMoment(r),status=rowStatus(r,day);
+  const date=el('span',moment.day.split('-').reverse().join('.'),'movement-date '+(moment.kind==='actual'?'actual':'planned'));
+  cells[0].append(date);if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock '+(moment.kind==='actual'?'actual':'planned')));
+  const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[1].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
+  place(cells[2],r.counterpart_port,r.counterpart_terminal);
+  place(cells[3],r.port,r.terminal);
+  cells[4].append(el('span',r.operator,'operator'),el('span',r.line_name.replace(r.operator+' · ',''),'sub'));
+  cells[5].append(el('span',statusNames[status],'status '+status));
   body.append(tr);
  }
  table.append(body);target.append(table);
 }
-function resetFilters(){update({port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:''});}
+function resetFilters(){update({port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',include_removed:''});}
 function openDialog(label){$('detail-label').textContent=label;$('detail-content').replaceChildren();if(!$('detail').open)$('detail').showModal();}
 function showDetail(r){
  openDialog(state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ');const root=$('detail-content');
  root.append(el('h2',r.vessel),el('p',`${r.voyage_number} · ${r.line_name}`));
  const dl=el('dl');
- for(const [k,v] of [['Место',r.port+(r.terminal?' · '+r.terminal:'')],[r.event_type==='arrival'?'Откуда':'Куда',r.counterpart_port||'Не указано'],['По расписанию',timeText(r.scheduled_date,r.scheduled_time)],['Ожидаемое время','Нет данных'],['Фактическое время','Не подтверждено'],['Часовой пояс',r.source_timezone||'Не подтверждён источником'],['IMO',r.imo||'Не указан'],['Проверено',fullDate(r.last_observed_at)],['Статус',statusNames[rowStatus(r,day)]]])dl.append(el('dt',k),el('dd',v));
+ const moment=movementMoment(r);
+ for(const [k,v] of [['Место',r.port+(r.terminal?' · '+r.terminal:'')],[r.event_type==='arrival'?'Откуда':'Куда',(r.counterpart_port||'Не указано')+(r.counterpart_terminal?' · '+r.counterpart_terminal:'')],['Дата и время',timeText(moment.day,moment.clock)],['Часовой пояс',r.source_timezone||'Не подтверждён источником'],['IMO',r.imo||'Не указан'],['Проверено',fullDate(r.last_observed_at)],['Статус',statusNames[rowStatus(r,day)]]])dl.append(el('dt',k),el('dd',v));
  root.append(dl,el('h3','Источник'));
+ if(!r.present_in_latest_version)root.append(el('p','Запись отсутствует в последнем расписании. Это не подтверждает отмену.','notice'));
+ if(r.source_is_stale||(new Date()-new Date(r.last_observed_at))>8*86400000)root.append(el('p','Источник устарел. Уточните сведения у оператора.','notice'));
  if(r.source_url){const a=el('a',r.operator+' ↗');a.href=r.source_url;a.target='_blank';a.rel='noopener noreferrer';root.append(a);}else root.append(el('p','Расписание предоставлено оператором Park Logistics. Публикация согласована.'));
  if(r.discrepancy)root.append(el('p',r.discrepancy,'notice'));
  root.append(el('h3','История опубликованных сведений'),el('p','Это изменения планового расписания, а не история фактического движения.'));

@@ -1,5 +1,5 @@
-export const defaults = {tab:'arrival',period:'today',port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',sort:'asc',from:'',to:''};
-export const statusNames = {scheduled:'По расписанию',unconfirmed:'Факт не подтверждён',removed:'Нет в последней версии',stale:'Устаревший источник',conflict:'Есть расхождения'};
+export const defaults = {tab:'arrival',period:'today',port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',sort:'asc',from:'',to:'',include_removed:''};
+export const statusNames = {scheduled:'Запланировано',in_transit:'В пути',arrived:'Прибыло',departed:'Отправилось',unconfirmed:'Не подтверждено'};
 export function today(now=new Date()) {return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);}
 export function addDays(day,n) {const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 export function readState(search) {
@@ -9,6 +9,9 @@ export function readState(search) {
  if(!['arrival','departure'].includes(s.tab))s.tab='arrival';
  if(!['today','tomorrow','7','14','custom'].includes(s.period))s.period='today';
  if(!['asc','desc'].includes(s.sort))s.sort='asc';
+ if(s.status==='removed')s.include_removed='1';
+ if(!Object.hasOwn(statusNames,s.status))s.status='';
+ s.include_removed=s.include_removed==='1'?'1':'';
  return s;
 }
 export function stateQuery(s) {
@@ -27,25 +30,38 @@ export function dateRange(s,day) {
  const first=s.period==='tomorrow'?addDays(day,1):day;
  return [first,addDays(first,['7','14'].includes(s.period)?Number(s.period)-1:0)];
 }
-export function rowStatus(r,day,now=new Date()) {
- if(r.source_is_stale || (r.last_observed_at&&(now-new Date(r.last_observed_at))>8*86400000))return 'stale';
- if(!r.present_in_latest_version)return 'removed';
- if(r.discrepancy)return 'conflict';
- return r.scheduled_date<day?'unconfirmed':'scheduled';
+// A passed plan is never evidence of departure or arrival.
+export function movementMoment(r) {
+ for(const [kind,value] of [['actual',r.actual_at],['estimated',r.estimated_at]]) {
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)||Number.isNaN(Date.parse(value)))continue;
+  if(r.source_timezone){
+   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:r.source_timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value));
+   const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+   return {day:`${p.year}-${p.month}-${p.day}`,clock:`${p.hour}:${p.minute}`,kind};
+  }
+  return {day:value.slice(0,10),clock:value.slice(11,16),kind};
+ }
+ return {day:r.scheduled_date,clock:r.scheduled_time?.slice(0,5)||null,kind:'scheduled'};
+}
+export function rowStatus(r,day) {
+ if(movementMoment(r).kind==='actual')return r.event_type==='arrival'?'arrived':'departed';
+ if(r.event_type==='arrival'&&r.movement_status==='in_transit')return 'in_transit';
+ return movementMoment(r).day<day?'unconfirmed':'scheduled';
 }
 export function filterRows(rows,s,day,now=new Date()) {
  const range=dateRange(s,day);if(!range)return [];
  const q=s.q.trim().toLocaleLowerCase('ru');
- return rows.filter(r=>r.event_type===s.tab&&r.scheduled_date>=range[0]&&r.scheduled_date<=range[1]
-  &&(r.present_in_latest_version||r.scheduled_date<day||s.status==='removed')
+ return rows.filter(r=>r.event_type===s.tab&&movementMoment(r).day>=range[0]&&movementMoment(r).day<=range[1]
+  &&(r.present_in_latest_version||r.scheduled_date<day||s.include_removed==='1'||movementMoment(r).kind==='actual')
   &&(!s.port||r.port===s.port)&&(!s.lines.length||s.lines.includes(r.line_id))
   &&(!s.terminal||r.terminal===s.terminal)&&(!s.operator||r.operator===s.operator)
   &&(!s.counterpart||r.counterpart_port===s.counterpart)&&(!s.type||r.vessel_type===s.type)
   &&(!s.status||rowStatus(r,day,now)===s.status)
   &&(!q||[r.vessel,r.voyage_number,r.imo].filter(Boolean).join(' ').toLocaleLowerCase('ru').includes(q)))
  .sort((a,b)=>{
-  const dayOrder=a.scheduled_date.localeCompare(b.scheduled_date)*(s.sort==='desc'?-1:1);
+  const am=movementMoment(a),bm=movementMoment(b);
+  const dayOrder=am.day.localeCompare(bm.day)*(s.sort==='desc'?-1:1);
   if(dayOrder)return dayOrder;
-  return (a.scheduled_time||'99:99').localeCompare(b.scheduled_time||'99:99')||a.vessel.localeCompare(b.vessel,'ru')||a.movement_id.localeCompare(b.movement_id);
+  return (am.clock||'').localeCompare(bm.clock||'')||a.vessel.localeCompare(b.vessel,'ru')||a.movement_id.localeCompare(b.movement_id);
  });
 }
