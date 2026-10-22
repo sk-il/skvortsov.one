@@ -1,30 +1,14 @@
 <!doctype html>
 <html lang="ru">
 <head>
- <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
- <title>Судозаходы · Maritime Tools</title>
- <meta name="description" content="Прибытия и отправления грузовых судов Калининграда, Балтийска и Светлого. Расписания линий, фильтры и история изменений.">
- <link rel="stylesheet" href="./style.css?v=1">
- <script type="module" src="./app.js?v=1"></script>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>Табло переехало · Maritime Tools</title>
+ <link rel="canonical" href="https://www.skvortsov.one/maritime-tools/port-board/">
+ <script>location.replace('/maritime-tools/port-board/' + location.search + location.hash);</script>
 </head>
 <body>
- <header class="top"><a class="brand" href="./">MARITIME <span>TOOLS</span></a><a class="home" href="/">skvortsov.one ↗</a></header>
- <main>
-  <section class="intro"><div><div class="eyebrow">КАЛИНИНГРАДСКАЯ ОБЛАСТЬ</div><h1>Судозаходы</h1><p>Грузовые линии · Калининград, Балтийск, Светлый</p></div><div class="fresh"><span class="live-dot"></span><span id="updated">Загрузка расписаний…</span><button id="sources-button" class="text-button">Источники и свежесть ↗</button></div></section>
-  <p id="warning" class="notice" hidden></p>
-  <section class="board" aria-label="Табло судозаходов">
-   <div class="board-top"><div class="tabs" role="tablist" aria-label="Тип движения"><button id="arrival-tab" role="tab" data-tab="arrival" aria-selected="true">↘ Прибытия</button><button id="departure-tab" role="tab" data-tab="departure" aria-selected="false">↗ Отправления</button></div><button id="share" class="share">Скопировать ссылку <span aria-hidden="true">↗</span></button></div>
-   <div class="toolbar"><div class="periods" aria-label="Период"><button data-period="today">Сегодня</button><button data-period="tomorrow">Завтра</button><button data-period="7">7 дней</button><button data-period="14">14 дней</button><button data-period="custom">Выбрать даты</button></div><button id="our-lines" class="preset" aria-pressed="false">Наши линии</button></div>
-   <div id="dates" class="dates" hidden><label>С <input id="from" type="date"></label><label>По <input id="to" type="date"></label><span id="date-error" role="alert"></span></div>
-   <div class="filters"><label>ГОРОД / РАЙОН<select id="port"><option value="">Все районы</option></select></label><div class="filter-field"><span class="label">ЛИНИИ</span><details class="line-menu"><summary id="line-summary">Все линии</summary><div id="line-options"></div></details></div><label class="search-field">СУДНО ИЛИ РЕЙС<input id="query" type="search" placeholder="Название, IMO, номер рейса" autocomplete="off"></label><button id="more" class="more" aria-expanded="false">Ещё фильтры <span>＋</span></button></div>
-   <div id="advanced" class="advanced" hidden><label>Терминал<select id="terminal"><option value="">Все терминалы</option></select></label><label>Оператор<select id="operator"><option value="">Все операторы</option></select></label><label id="counterpart-label">Откуда<select id="counterpart"><option value="">Все порты</option></select></label><label>Тип<select id="type"><option value="">Все типы</option></select></label><label>Статус<select id="status"><option value="">Все статусы</option><option value="scheduled">По расписанию</option><option value="unconfirmed">Факт не подтверждён</option><option value="removed">Нет в последней версии</option><option value="stale">Устаревший источник</option><option value="conflict">Есть расхождения</option></select></label></div>
-   <div id="chips" class="chips"></div>
-   <div class="results-bar"><p id="count" aria-live="polite">Получаем данные…</p><label>Сортировка <select id="sort"><option value="asc">Сначала ближайшие</option><option value="desc">Сначала поздние</option></select></label></div>
-   <div id="rows" role="tabpanel" aria-labelledby="arrival-tab"><div class="loading">Загрузка…</div></div>
-  </section>
-  <footer><p id="coverage">Плановое время не является подтверждением прибытия или отправления.</p><p>Время — как в источнике. Часовой пояс расписаний пока не подтверждён. Периоды «сегодня» и «завтра» — по Калининграду.</p><p>Нашли неточность? Сверьте данные с оператором перед организацией перевозки.</p></footer>
- </main>
- <dialog id="detail"><div class="dialog-head"><span class="eyebrow" id="detail-label">СУДОЗАХОД</span><button id="close-detail" aria-label="Закрыть">✕</button></div><div id="detail-content"></div></dialog>
- <div id="toast" role="status" hidden></div>
+ <p>Табло «Прибытие и отправление судов» переехало.</p>
+ <p><a href="/maritime-tools/port-board/">Открыть табло</a></p>
 </body>
 </html>
