@@ -3,6 +3,14 @@ export const statusNames = {scheduled:'Запланировано',in_transit:'�
 export function today(now=new Date()) {return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);}
 export function addDays(day,n) {const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 export function weekday(day) {return ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(day+'T12:00:00Z').getUTCDay()];}
+export function dateLabel(day) {return day?day.split('-').reverse().join('.')+' '+weekday(day):'Дата не указана';}
+export function dateTimeLabel(day,clock) {return dateLabel(day)+(day&&clock?' '+clock.slice(0,5):'');}
+export function voyageEndpoints(r) {
+ const own={port:r.port,terminal:r.terminal,port_id:r.port_id,terminal_id:r.terminal_id,...movementMoment(r)};
+ const other={port:r.counterpart_port,terminal:r.counterpart_terminal,port_id:r.counterpart_port_id,terminal_id:r.counterpart_terminal_id,
+  day:r.counterpart_scheduled_date||null,clock:r.counterpart_scheduled_time?.slice(0,5)||null};
+ return r.event_type==='arrival'?{departure:other,arrival:own}:{departure:own,arrival:other};
+}
 export function readState(search) {
  const p=new URLSearchParams(search),s={...defaults,lines:[]};
  for(const k of Object.keys(defaults)) if(p.has(k)&&k!=='lines')s[k]=p.get(k).slice(0,180);

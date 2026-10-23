@@ -1,11 +1,11 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,weekday} from './model.mjs?v=3';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints} from './model.mjs?v=4';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
 let data,state=readState(location.search),day=today();
 const fullDate=v=>v?new Intl.DateTimeFormat('ru',{timeZone:'Europe/Kaliningrad',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'нет данных';
 const shortDate=v=>v?new Intl.DateTimeFormat('ru',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(v+'T12:00:00Z')):'—';
-const timeText=(day,clock)=>`${shortDate(day)}${clock?' · '+clock.slice(0,5):''}`;
+const timeText=dateTimeLabel;
 function cardButton(label,kind,id,cls='place-link'){
  const profile=data[kind]?.[id];const node=el(profile?'button':'span',label,cls);
  if(profile){node.title=(kind==='ports'?'О порте ':'О терминале ')+label;node.setAttribute('aria-label',node.title);node.addEventListener('click',()=>showLocation(kind,profile));}
@@ -76,7 +76,7 @@ function render(){
  const rows=filterRows(data.movements,state,day);
  $('count').textContent=`${state.tab==='arrival'?'Прибытий':'Отправлений'}: ${rows.length} · ${new Set(rows.map(r=>r.vessel)).size} судов`;
  const target=$('rows');target.replaceChildren();
- if(!rows.length){const empty=el('div',undefined,'empty');empty.append(el('h2','По этим условиям записей нет'),el('p','Измените период или фильтры. Это не означает, что движения судов нет.'));const b=el('button','Ближайшие 14 дней · все линии');b.addEventListener('click',()=>update({...defaults,tab:state.tab,lines:[],period:'14'}));empty.append(b);target.append(empty);return;}
+ if(!rows.length){const empty=el('div',undefined,'empty');empty.append(el('h2','По этим условиям записей нет'),el('p','Измените период или фильтры.'));const b=el('button','Ближайшие 14 дней · все линии');b.addEventListener('click',()=>update({...defaults,tab:state.tab,lines:[],period:'14'}));empty.append(b);target.append(empty);return;}
  const table=el('table'),head=el('thead'),hr=el('tr');
  const labelsHead=['ДАТА И ВРЕМЯ','СУДНО / РЕЙС',state.tab==='arrival'?'ОТКУДА':'КУДА',state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ','ОПЕРАТОР','СТАТУС'];
  labelsHead.forEach(t=>{const th=el('th',t);th.scope='col';hr.append(th);});head.append(hr);table.append(head);
@@ -84,8 +84,9 @@ function render(){
  for(const r of rows){
   const tr=el('tr',undefined,'data-row');const cells=labelsHead.map(label=>{const td=el('td');td.dataset.label=label;tr.append(td);return td;});
   const moment=movementMoment(r),status=rowStatus(r,day);
-  const date=el('span',moment.day.split('-').reverse().join('.'),'movement-date state-'+status);
-  cells[0].append(date,el('span',weekday(moment.day)+(moment.clock?' · '+moment.clock:''),'movement-clock state-'+status));
+  const date=el('span',dateLabel(moment.day),'movement-date state-'+status);
+  cells[0].append(date);
+  if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock state-'+status));
   const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[1].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
   place(cells[2],r.counterpart_port,r.counterpart_terminal,r.counterpart_port_id,r.counterpart_terminal_id);
   place(cells[3],r.port,r.terminal,r.port_id,r.terminal_id);
@@ -119,7 +120,7 @@ function showOperator(r){
  if(profile.companies?.length){
   const details=el('details',undefined,'operator-companies');details.append(el('summary','Связанные юридические лица'));
   for(const c of profile.companies)details.append(el('p',c.name+(c.inn?' · ИНН '+c.inn:'')));
-  details.append(el('p','Связь с коммерческим названием; не определяет перевозчика по конкретному договору.','sub'));root.append(details);
+  root.append(details);
  }
  const evidence=el('details',undefined,'operator-sources');evidence.append(el('summary','Источники и дата проверки'));
  evidence.append(el('p','Карточка проверена: '+fullDate(profile.checked_at)));
@@ -145,8 +146,6 @@ function showLocation(kind,p){
   links.append(publicLink('Показать на карте',`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=14/${lat}/${lon}`));
  }
  if(links.children.length)root.append(links);
- if(p.latitude!=null&&p.longitude!=null)root.append(el('p','На карте — ориентировочная справочная точка, не границы территории и не навигационный ориентир.','card-checked'));
- if(terminal&&p.name==='СТ')root.append(el('p','Соответствие сокращения СТ этой площадке установлено по косвенным источникам. Точка на карте рассчитана по историческому описанию причала.','notice'));
  if(!terminal){const list=Object.values(data.terminals||{}).filter(t=>t.port_id===p.id);if(list.length){root.append(el('h3','Терминалы'));const items=el('div',undefined,'card-list');for(const t of list)items.append(cardButton(t.full_name||t.name,'terminals',t.id));root.append(items);}}
  checked(root,p.checked_at);
 }
@@ -163,24 +162,26 @@ function showDetail(r){
   ['Дедвейт',p.deadweight_t?number(p.deadweight_t)+' т':null],['Валовая вместимость',p.gross_tonnage?number(p.gross_tonnage)+' GT':null]]);
  checked(root,p.checked_at);
  const section=el('section',undefined,'voyage-card');section.append(el('h3',r.voyage_number?'Рейс '+r.voyage_number:'Выбранное движение'));
- const moment=movementMoment(r),own=el('div'),other=el('div');
- place(own,r.port,r.terminal,r.port_id,r.terminal_id);place(other,r.counterpart_port,r.counterpart_terminal,r.counterpart_port_id,r.counterpart_terminal_id);
+ const endpoints=voyageEndpoints(r),route={};
+ for(const [key,endpoint] of Object.entries(endpoints)){
+  const block=el('div');block.append(el('span',dateTimeLabel(endpoint.day,endpoint.clock),'route-moment'));
+  place(block,endpoint.port,endpoint.terminal,endpoint.port_id,endpoint.terminal_id);route[key]=block;
+ }
  const op=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator-link');if(op.tagName==='BUTTON')op.addEventListener('click',()=>showOperator(r));
- facts(section,[['Оператор',op],[r.event_type==='arrival'?'Откуда':'Куда',other],[r.event_type==='arrival'?'Прибытие':'Отправление',own],
-  ['Дата и время',`${timeText(moment.day,moment.clock)} · ${weekday(moment.day)}`],['Статус',statusNames[rowStatus(r,day)]]]);
+ facts(section,[['Оператор',op],['Отправление',route.departure],['Прибытие',route.arrival],['Статус',statusNames[rowStatus(r,day)]]]);
  if(r.source_url)section.append(publicLink('Расписание источника',r.source_url));else section.append(el('p','Расписание предоставлено Park Logistics.'));
  section.append(el('p','Проверено '+fullDate(r.last_observed_at),'card-checked'));
- if(!r.present_in_latest_version)section.append(el('p','Запись отсутствует в последнем расписании. Это не подтверждает отмену.','notice'));
+ if(!r.present_in_latest_version)section.append(el('p','Запись отсутствует в последнем расписании.','notice'));
  if(r.source_is_stale||(new Date()-new Date(r.last_observed_at))>8*86400000)section.append(el('p','Источник устарел. Уточните сведения у оператора.','notice'));
  if(r.discrepancy)section.append(el('p',r.discrepancy,'notice'));
- if(r.history?.length){const details=el('details',undefined,'card-history');details.append(el('summary','История расписания этого рейса'),el('p','Изменения опубликованного плана, не фактические переходы судна.'));
+ if(r.history?.length){const details=el('details',undefined,'card-history');details.append(el('summary','История расписания этого рейса'));
   for(const item of [...r.history].reverse()){const text=el('p',undefined,'history-item');text.append(el('strong',timeText(item.day,item.clock)),el('span',(item.terminal||'Терминал не указан')+' · '+fullDate(item.known_at),'sub'));details.append(text);}section.append(details);
  }
  root.append(section);
 }
 function showSources(){
- openDialog('ПОКРЫТИЕ И СВЕЖЕСТЬ');const root=$('detail-content');root.append(el('h2','Источники данных'),el('p',data.coverage));
- root.append(el('p','Выгрузка сайта: '+fullDate(data.generated_at)+'. Сбор расписаний и выгрузка выполняются независимо. Дата проверки не равна дате изменения расписания.'));
+ openDialog('ПОКРЫТИЕ И СВЕЖЕСТЬ');const root=$('detail-content');root.append(el('h2','Источники данных'));
+ root.append(el('p','Выгрузка сайта: '+fullDate(data.generated_at)));
  for(const s of data.sources){const example=data.movements.find(r=>r.source_key===s.source_key);root.append(el('h3',example?.line_name||s.source_key),el('p','Последняя проверка: '+fullDate(s.attempted_at)),el('p','Последние пригодные данные: '+fullDate(s.good_at)));
   if(s.source_published_on)root.append(el('p','Дата обновления в источнике: '+shortDate(s.source_published_on)));
   if(s.attempt_status==='failed'||s.parse_status==='failed'||!s.good_at)root.append(el('p','Обновление не удалось. Прежние данные не удалены.','notice'));
