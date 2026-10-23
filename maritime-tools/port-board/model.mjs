@@ -2,12 +2,13 @@ export const defaults = {tab:'arrival',period:'today',port:'',lines:[],q:'',term
 export const statusNames = {scheduled:'Запланировано',in_transit:'В пути',arrived:'Прибыло',departed:'Отправилось',unconfirmed:'Не подтверждено'};
 export function today(now=new Date()) {return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);}
 export function addDays(day,n) {const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+export function weekday(day) {return ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(day+'T12:00:00Z').getUTCDay()];}
 export function readState(search) {
  const p=new URLSearchParams(search),s={...defaults,lines:[]};
  for(const k of Object.keys(defaults)) if(p.has(k)&&k!=='lines')s[k]=p.get(k).slice(0,180);
  s.lines=[...new Set((p.get('lines')||'').split(',').filter(Boolean))].sort();
  if(!['arrival','departure'].includes(s.tab))s.tab='arrival';
- if(!['today','tomorrow','7','14','custom'].includes(s.period))s.period='today';
+ if(!['today','tomorrow','week','month','7','14','custom'].includes(s.period))s.period='today';
  if(!['asc','desc'].includes(s.sort))s.sort='asc';
  if(s.status==='removed')s.include_removed='1';
  if(!Object.hasOwn(statusNames,s.status))s.status='';
@@ -23,6 +24,8 @@ export function stateQuery(s) {
  return p.toString();
 }
 export function dateRange(s,day) {
+ if(s.period==='week') {const start=addDays(day,-((new Date(day+'T12:00:00Z').getUTCDay()+6)%7));return [start,addDays(start,6)];}
+ if(s.period==='month') {const end=new Date(day+'T12:00:00Z');end.setUTCMonth(end.getUTCMonth()+1,0);return [day.slice(0,7)+'-01',end.toISOString().slice(0,10)];}
  if(s.period==='custom') {
   const valid=v=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T12:00:00Z'))&&new Date(v+'T12:00:00Z').toISOString().slice(0,10)===v;
   return valid(s.from)&&valid(s.to)&&s.from<=s.to?[s.from,s.to]:null;

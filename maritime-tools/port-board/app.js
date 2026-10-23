@@ -1,4 +1,4 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment} from './model.mjs?v=2';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,weekday} from './model.mjs?v=3';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
@@ -6,7 +6,16 @@ let data,state=readState(location.search),day=today();
 const fullDate=v=>v?new Intl.DateTimeFormat('ru',{timeZone:'Europe/Kaliningrad',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'нет данных';
 const shortDate=v=>v?new Intl.DateTimeFormat('ru',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(v+'T12:00:00Z')):'—';
 const timeText=(day,clock)=>`${shortDate(day)}${clock?' · '+clock.slice(0,5):''}`;
-function place(cell,port,terminal){cell.append(el('span',port||'—'));if(terminal){const badge=el('span',terminal,'badge');badge.style.setProperty('--badge',colors[terminal]||'#526e88');cell.append(el('br'),badge);}else cell.append(el('span','терминал не указан','sub'));}
+function cardButton(label,kind,id,cls='place-link'){
+ const profile=data[kind]?.[id];const node=el(profile?'button':'span',label,cls);
+ if(profile){node.title=(kind==='ports'?'О порте ':'О терминале ')+label;node.setAttribute('aria-label',node.title);node.addEventListener('click',()=>showLocation(kind,profile));}
+ return node;
+}
+function place(cell,port,terminal,portId,terminalId){
+ cell.append(cardButton(port||'—','ports',portId));
+ if(terminal){const badge=cardButton(terminal,'terminals',terminalId,'badge terminal-link');badge.style.setProperty('--badge',colors[terminal]||'#526e88');cell.append(el('br'),badge);}
+ else cell.append(el('span','терминал не указан','sub'));
+}
 function update(patch,replace=false){state={...state,...patch};const q=stateQuery(state);history[replace?'replaceState':'pushState'](null,'',location.pathname+(q?'?'+q:''));render();}
 function selectOptions(id,field){const select=$(id);for(const value of [...new Set(data.movements.map(r=>r[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru')))select.add(new Option(value,value));}
 const operatorName=r=>r.operator_name||data.operators?.[r.operator]?.name||r.operator;
@@ -28,7 +37,6 @@ function initialize(){
  $('close-detail').addEventListener('click',()=>$('detail').close());
  $('detail').addEventListener('click',e=>{if(e.target===$('detail')){const b=$('detail').getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right)$('detail').close();}});
  addEventListener('popstate',()=>{state=readState(location.search);render();});
- $('coverage').textContent=data.coverage;
  render();
 }
 function ours(){return state.lines.length===data.our_lines.length&&data.our_lines.every(x=>state.lines.includes(x));}
@@ -70,29 +78,29 @@ function render(){
  const target=$('rows');target.replaceChildren();
  if(!rows.length){const empty=el('div',undefined,'empty');empty.append(el('h2','По этим условиям записей нет'),el('p','Измените период или фильтры. Это не означает, что движения судов нет.'));const b=el('button','Ближайшие 14 дней · все линии');b.addEventListener('click',()=>update({...defaults,tab:state.tab,lines:[],period:'14'}));empty.append(b);target.append(empty);return;}
  const table=el('table'),head=el('thead'),hr=el('tr');
- const labelsHead=['ДАТА И ВРЕМЯ','СУДНО / РЕЙС',state.tab==='arrival'?'ОТКУДА':'КУДА',state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ','ЛИНИЯ / ОПЕРАТОР','СТАТУС'];
+ const labelsHead=['ДАТА И ВРЕМЯ','СУДНО / РЕЙС',state.tab==='arrival'?'ОТКУДА':'КУДА',state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ','ОПЕРАТОР','СТАТУС'];
  labelsHead.forEach(t=>{const th=el('th',t);th.scope='col';hr.append(th);});head.append(hr);table.append(head);
  const body=el('tbody');
  for(const r of rows){
   const tr=el('tr',undefined,'data-row');const cells=labelsHead.map(label=>{const td=el('td');td.dataset.label=label;tr.append(td);return td;});
   const moment=movementMoment(r),status=rowStatus(r,day);
   const date=el('span',moment.day.split('-').reverse().join('.'),'movement-date state-'+status);
-  cells[0].append(date);if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock state-'+status));
+  cells[0].append(date,el('span',weekday(moment.day)+(moment.clock?' · '+moment.clock:''),'movement-clock state-'+status));
   const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[1].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
-  place(cells[2],r.counterpart_port,r.counterpart_terminal);
-  place(cells[3],r.port,r.terminal);
+  place(cells[2],r.counterpart_port,r.counterpart_terminal,r.counterpart_port_id,r.counterpart_terminal_id);
+  place(cells[3],r.port,r.terminal,r.port_id,r.terminal_id);
   const operator=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator');
   if(operator.tagName==='BUTTON'){operator.classList.add('operator-link');operator.title='Об операторе';operator.setAttribute('aria-label','Об операторе '+operatorName(r));operator.addEventListener('click',()=>showOperator(r));}
-  cells[4].append(operator,el('span',r.line_name.replace(r.operator+' · ',''),'sub'));
+  cells[4].append(operator);
   cells[5].append(el('span',statusNames[status],'status '+status));
   body.append(tr);
  }
  table.append(body);target.append(table);
 }
 function resetFilters(){update({port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',include_removed:''});}
-function openDialog(label){$('detail-label').textContent=label;$('detail-content').replaceChildren();if(!$('detail').open)$('detail').showModal();}
+function openDialog(label){$('detail-label').textContent=label;$('detail-content').replaceChildren();if(!$('detail').open)$('detail').showModal();$('detail').scrollTop=0;$('close-detail').focus({preventScroll:true});}
 function publicLink(label,url){
- try{const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.username||parsed.password)return el('span',label);}catch{return el('span',label);}
+ try{const parsed=new URL(url);if(!['https:','http:'].includes(parsed.protocol)||parsed.username||parsed.password)return el('span',label);}catch{return el('span',label);}
  const a=el('a',label+' ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;
 }
 function showOperator(r){
@@ -118,19 +126,57 @@ function showOperator(r){
  for(const s of profile.sources||[]){const p=el('p');p.append(publicLink(s.label,s.url));evidence.append(p);}
  root.append(evidence);
 }
+const vesselTypes={container:'Контейнеровоз',general_cargo:'Сухогруз',ro_ro_cargo:'Грузовое судно Ro-Ro',ro_ro_passenger:'Грузопассажирский паром'};
+const number=v=>v===null||v===undefined?null:new Intl.NumberFormat('ru',{maximumFractionDigits:2}).format(Number(v));
+function country(code){if(!code)return null;try{return new Intl.DisplayNames('ru',{type:'region'}).of(code);}catch{return code;}}
+function facts(root,items){const dl=el('dl',undefined,'card-facts');for(const [label,value] of items)if(value!==null&&value!==undefined&&value!==''){const dd=el('dd');dd.append(value instanceof Node?value:document.createTextNode(String(value)));dl.append(el('dt',label),dd);}if(dl.children.length)root.append(dl);}
+function checked(root,at){if(at)root.append(el('p','Карточка проверена '+shortDate(at.slice(0,10)),'card-checked'));}
+function showLocation(kind,p){
+ const terminal=kind==='terminals';openDialog(terminal?'ТЕРМИНАЛ':'ПОРТ');const root=$('detail-content');
+ root.append(el('h2',terminal?p.full_name||p.name:p.name));
+ if(terminal&&p.full_name&&p.name!==p.full_name)root.append(el('p',p.name,'card-subtitle'));
+ if(!terminal&&p.name_international)root.append(el('p',p.name_international,'card-subtitle'));
+ const parent=data.ports?.[p.port_id];
+ facts(root,[['Порт',parent?cardButton(parent.name,'ports',parent.id):null],['Страна',!terminal?country(p.country_code):null],
+  ['Адрес',p.address],['UN/LOCODE',p.unlocode],['SMDG',p.smdg_terminal_code?`${p.smdg_port_unlocode} · ${p.smdg_terminal_code}`:null]]);
+ const links=el('div',undefined,'card-links');if(p.website)links.append(publicLink('Сайт терминала',p.website));
+ const lat=Number(p.latitude),lon=Number(p.longitude);
+ if(p.latitude!=null&&p.longitude!=null&&Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180){
+  links.append(publicLink('Показать на карте',`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=14/${lat}/${lon}`));
+ }
+ if(links.children.length)root.append(links);
+ if(p.latitude!=null&&p.longitude!=null)root.append(el('p','На карте — ориентировочная справочная точка, не границы территории и не навигационный ориентир.','card-checked'));
+ if(terminal&&p.name==='СТ')root.append(el('p','Соответствие сокращения СТ этой площадке установлено по косвенным источникам. Точка на карте рассчитана по историческому описанию причала.','notice'));
+ if(!terminal){const list=Object.values(data.terminals||{}).filter(t=>t.port_id===p.id);if(list.length){root.append(el('h3','Терминалы'));const items=el('div',undefined,'card-list');for(const t of list)items.append(cardButton(t.full_name||t.name,'terminals',t.id));root.append(items);}}
+ checked(root,p.checked_at);
+}
 function showDetail(r){
- openDialog(state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ');const root=$('detail-content');
- root.append(el('h2',r.vessel),el('p',`${r.voyage_number} · ${r.line_name}`));
- const dl=el('dl');
- const moment=movementMoment(r);
- for(const [k,v] of [['Место',r.port+(r.terminal?' · '+r.terminal:'')],[r.event_type==='arrival'?'Откуда':'Куда',(r.counterpart_port||'Не указано')+(r.counterpart_terminal?' · '+r.counterpart_terminal:'')],['Дата и время',timeText(moment.day,moment.clock)],['Часовой пояс',r.source_timezone||'Не подтверждён источником'],['IMO',r.imo||'Не указан'],['Проверено',fullDate(r.last_observed_at)],['Статус',statusNames[rowStatus(r,day)]]])dl.append(el('dt',k),el('dd',v));
- root.append(dl,el('h3','Источник'));
- if(!r.present_in_latest_version)root.append(el('p','Запись отсутствует в последнем расписании. Это не подтверждает отмену.','notice'));
- if(r.source_is_stale||(new Date()-new Date(r.last_observed_at))>8*86400000)root.append(el('p','Источник устарел. Уточните сведения у оператора.','notice'));
- if(r.source_url){const a=el('a',r.operator+' ↗');a.href=r.source_url;a.target='_blank';a.rel='noopener noreferrer';root.append(a);}else root.append(el('p','Расписание предоставлено оператором Park Logistics. Публикация согласована.'));
- if(r.discrepancy)root.append(el('p',r.discrepancy,'notice'));
- root.append(el('h3','История опубликованных сведений'),el('p','Это изменения планового расписания, а не история фактического движения.'));
- for(const item of [...(r.history||[])].reverse()){const p=el('p',undefined,'history-item');p.append(el('strong',timeText(item.day,item.clock)),el('span',(item.terminal||'Терминал не указан')+' · известно с '+fullDate(item.known_at),'sub'));root.append(p);}
+ const p=data.vessels?.[r.vessel_id]||{name:r.vessel,imo:r.imo};
+ openDialog('СУДНО');const root=$('detail-content');root.append(el('h2',p.name));
+ const subtitle=[p.name_international&&p.name_international.toLocaleLowerCase()!==p.name.toLocaleLowerCase()?p.name_international:null,vesselTypes[p.vessel_type]||p.vessel_type].filter(Boolean).join(' · ');
+ if(subtitle)root.append(el('p',subtitle,'card-subtitle'));
+ const links=el('div',undefined,'card-links');
+ for(const [label,url] of [['MarineTraffic',p.marinetraffic_url],['VesselFinder',p.vesselfinder_url]])if(url)links.append(publicLink(label,url));
+ if(links.children.length)root.append(links);
+ facts(root,[['IMO',p.imo],['MMSI',p.mmsi],['Флаг',country(p.flag_country_code)],['Позывной',p.call_sign],['Год постройки',p.built_year],
+  ['Длина',p.length_overall_m?number(p.length_overall_m)+' м':null],['Ширина',p.beam_m?number(p.beam_m)+' м':null],
+  ['Дедвейт',p.deadweight_t?number(p.deadweight_t)+' т':null],['Валовая вместимость',p.gross_tonnage?number(p.gross_tonnage)+' GT':null]]);
+ checked(root,p.checked_at);
+ const section=el('section',undefined,'voyage-card');section.append(el('h3',r.voyage_number?'Рейс '+r.voyage_number:'Выбранное движение'));
+ const moment=movementMoment(r),own=el('div'),other=el('div');
+ place(own,r.port,r.terminal,r.port_id,r.terminal_id);place(other,r.counterpart_port,r.counterpart_terminal,r.counterpart_port_id,r.counterpart_terminal_id);
+ const op=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator-link');if(op.tagName==='BUTTON')op.addEventListener('click',()=>showOperator(r));
+ facts(section,[['Оператор',op],[r.event_type==='arrival'?'Откуда':'Куда',other],[r.event_type==='arrival'?'Прибытие':'Отправление',own],
+  ['Дата и время',`${timeText(moment.day,moment.clock)} · ${weekday(moment.day)}`],['Статус',statusNames[rowStatus(r,day)]]]);
+ if(r.source_url)section.append(publicLink('Расписание источника',r.source_url));else section.append(el('p','Расписание предоставлено Park Logistics.'));
+ section.append(el('p','Проверено '+fullDate(r.last_observed_at),'card-checked'));
+ if(!r.present_in_latest_version)section.append(el('p','Запись отсутствует в последнем расписании. Это не подтверждает отмену.','notice'));
+ if(r.source_is_stale||(new Date()-new Date(r.last_observed_at))>8*86400000)section.append(el('p','Источник устарел. Уточните сведения у оператора.','notice'));
+ if(r.discrepancy)section.append(el('p',r.discrepancy,'notice'));
+ if(r.history?.length){const details=el('details',undefined,'card-history');details.append(el('summary','История расписания этого рейса'),el('p','Изменения опубликованного плана, не фактические переходы судна.'));
+  for(const item of [...r.history].reverse()){const text=el('p',undefined,'history-item');text.append(el('strong',timeText(item.day,item.clock)),el('span',(item.terminal||'Терминал не указан')+' · '+fullDate(item.known_at),'sub'));details.append(text);}section.append(details);
+ }
+ root.append(section);
 }
 function showSources(){
  openDialog('ПОКРЫТИЕ И СВЕЖЕСТЬ');const root=$('detail-content');root.append(el('h2','Источники данных'),el('p',data.coverage));
