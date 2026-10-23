@@ -9,6 +9,7 @@ const timeText=(day,clock)=>`${shortDate(day)}${clock?' · '+clock.slice(0,5):''
 function place(cell,port,terminal){cell.append(el('span',port||'—'));if(terminal){const badge=el('span',terminal,'badge');badge.style.setProperty('--badge',colors[terminal]||'#526e88');cell.append(el('br'),badge);}else cell.append(el('span','терминал не указан','sub'));}
 function update(patch,replace=false){state={...state,...patch};const q=stateQuery(state);history[replace?'replaceState':'pushState'](null,'',location.pathname+(q?'?'+q:''));render();}
 function selectOptions(id,field){const select=$(id);for(const value of [...new Set(data.movements.map(r=>r[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru')))select.add(new Option(value,value));}
+const operatorName=r=>r.operator_name||data.operators?.[r.operator]?.name||r.operator;
 function initialize(){
  for(const [id,field] of [['port','port'],['terminal','terminal'],['operator','operator'],['counterpart','counterpart_port'],['type','vessel_type']])selectOptions(id,field);
  const lines=new Map(data.movements.map(r=>[r.line_id,r.line_name]));
@@ -80,7 +81,9 @@ function render(){
   const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[1].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
   place(cells[2],r.counterpart_port,r.counterpart_terminal);
   place(cells[3],r.port,r.terminal);
-  cells[4].append(el('span',r.operator,'operator'),el('span',r.line_name.replace(r.operator+' · ',''),'sub'));
+  const operator=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator');
+  if(operator.tagName==='BUTTON'){operator.classList.add('operator-link');operator.title='Об операторе';operator.setAttribute('aria-label','Об операторе '+operatorName(r));operator.addEventListener('click',()=>showOperator(r));}
+  cells[4].append(operator,el('span',r.line_name.replace(r.operator+' · ',''),'sub'));
   cells[5].append(el('span',statusNames[status],'status '+status));
   body.append(tr);
  }
@@ -88,6 +91,33 @@ function render(){
 }
 function resetFilters(){update({port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',include_removed:''});}
 function openDialog(label){$('detail-label').textContent=label;$('detail-content').replaceChildren();if(!$('detail').open)$('detail').showModal();}
+function publicLink(label,url){
+ try{const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.username||parsed.password)return el('span',label);}catch{return el('span',label);}
+ const a=el('a',label+' ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;
+}
+function showOperator(r){
+ const profile=data.operators?.[r.operator_key||r.operator];if(!profile)return;
+ openDialog('ОПЕРАТОР');const root=$('detail-content');
+ root.append(el('h2',profile.name),el('p',profile.description,'operator-description'));
+ if(profile.website)root.append(publicLink('Сайт оператора',profile.website));
+ const dl=el('dl');
+ for(const [label,value] of [['Email',profile.email],['Телефон',profile.phone]])if(value){
+  const dd=el('dd'),link=el('a',value);link.href=label==='Email'?'mailto:'+encodeURIComponent(value):'tel:'+value.replace(/[^+\d]/g,'');dd.append(link);dl.append(el('dt',label),dd);
+ }
+ root.append(dl,el('h3','Линии на табло'));
+ const lines=new Map(data.movements.filter(x=>(x.operator_key||x.operator)===profile.filter_key).map(x=>[x.line_id,x.line_name]));
+ const list=el('ul');for(const name of lines.values())list.append(el('li',name));root.append(list);
+ const view=el('button','Показать рейсы оператора','operator-view');view.addEventListener('click',()=>{$('detail').close();update({operator:r.operator,lines:[]});});root.append(view);
+ if(profile.companies?.length){
+  const details=el('details',undefined,'operator-companies');details.append(el('summary','Связанные юридические лица'));
+  for(const c of profile.companies)details.append(el('p',c.name+(c.inn?' · ИНН '+c.inn:'')));
+  details.append(el('p','Связь с коммерческим названием; не определяет перевозчика по конкретному договору.','sub'));root.append(details);
+ }
+ const evidence=el('details',undefined,'operator-sources');evidence.append(el('summary','Источники и дата проверки'));
+ evidence.append(el('p','Карточка проверена: '+fullDate(profile.checked_at)));
+ for(const s of profile.sources||[]){const p=el('p');p.append(publicLink(s.label,s.url));evidence.append(p);}
+ root.append(evidence);
+}
 function showDetail(r){
  openDialog(state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ');const root=$('detail-content');
  root.append(el('h2',r.vessel),el('p',`${r.voyage_number} · ${r.line_name}`));
