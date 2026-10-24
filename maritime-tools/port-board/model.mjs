@@ -8,7 +8,7 @@ export function dateTimeLabel(day,clock) {return dateLabel(day)+(day&&clock?' ·
 export function voyageEndpoints(r) {
  const own={port:r.port,terminal:r.terminal,port_id:r.port_id,terminal_id:r.terminal_id,...movementMoment(r)};
  const other={port:r.counterpart_port,terminal:r.counterpart_terminal,port_id:r.counterpart_port_id,terminal_id:r.counterpart_terminal_id,
-  day:r.counterpart_scheduled_date||null,clock:r.counterpart_scheduled_time?.slice(0,5)||null};
+  day:r.counterpart_display_date||r.counterpart_scheduled_date||null,clock:(Object.hasOwn(r,'counterpart_display_time')?r.counterpart_display_time:r.counterpart_scheduled_time)?.slice(0,5)||null};
  return r.event_type==='arrival'?{departure:other,arrival:own}:{departure:own,arrival:other};
 }
 export function readState(search) {
@@ -43,6 +43,7 @@ export function dateRange(s,day) {
 }
 // A passed plan is never evidence of departure or arrival.
 export function movementMoment(r) {
+ if(/^\d{4}-\d{2}-\d{2}$/.test(r.display_date||''))return {day:r.display_date,clock:r.display_time?.slice(0,5)||null,kind:'selected'};
  for(const [kind,value] of [['actual',r.actual_at],['estimated',r.estimated_at]]) {
   if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)||Number.isNaN(Date.parse(value)))continue;
   if(r.source_timezone){
@@ -55,6 +56,8 @@ export function movementMoment(r) {
  return {day:r.scheduled_date,clock:r.scheduled_time?.slice(0,5)||null,kind:'scheduled'};
 }
 export function rowStatus(r,day) {
+ if(r.event_confirmed===true)return r.event_type==='arrival'?'arrived':'departed';
+ if(Object.hasOwn(statusNames,r.movement_status)&&(r.movement_status!=='in_transit'||r.event_type==='arrival'))return r.movement_status;
  if(movementMoment(r).kind==='actual')return r.event_type==='arrival'?'arrived':'departed';
  if(r.event_type==='arrival'&&r.movement_status==='in_transit')return 'in_transit';
  return movementMoment(r).day<day?'unconfirmed':'scheduled';
@@ -63,7 +66,7 @@ export function filterRows(rows,s,day,now=new Date()) {
  const range=dateRange(s,day);if(!range)return [];
  const q=s.q.trim().toLocaleLowerCase('ru');
  return rows.filter(r=>r.event_type===s.tab&&movementMoment(r).day>=range[0]&&movementMoment(r).day<=range[1]
-  &&(r.present_in_latest_version||r.scheduled_date<day||s.include_removed==='1'||movementMoment(r).kind==='actual')
+  &&(r.present_in_latest_version||r.scheduled_date<day||s.include_removed==='1'||movementMoment(r).kind==='actual'||r.event_confirmed===true)
   &&(!s.port||r.port===s.port)&&(!s.lines.length||s.lines.includes(r.line_id))
   &&(!s.terminal||r.terminal===s.terminal)&&(!s.operator||r.operator===s.operator)
   &&(!s.counterpart||r.counterpart_port===s.counterpart)&&(!s.type||r.vessel_type===s.type)
