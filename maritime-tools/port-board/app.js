@@ -1,8 +1,8 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints} from './model.mjs?v=6';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,sourceIsStale} from './model.mjs?v=7';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
-let data,state=readState(location.search),day=today();
+let data,state=readState(location.search),day=today(),initialized=false,loadFailed=false;
 const fullDate=v=>v?new Intl.DateTimeFormat('ru',{timeZone:'Europe/Kaliningrad',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'нет данных';
 const shortDate=v=>v?new Intl.DateTimeFormat('ru',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(v+'T12:00:00Z')):'—';
 const timeText=dateTimeLabel;
@@ -17,14 +17,17 @@ function place(cell,port,terminal,portId,terminalId){
  else cell.append(el('span','терминал не указан','sub'));
 }
 function update(patch,replace=false){state={...state,...patch};const q=stateQuery(state);history[replace?'replaceState':'pushState'](null,'',location.pathname+(q?'?'+q:''));render();}
-function selectOptions(id,field){const select=$(id);for(const value of [...new Set(data.movements.map(r=>r[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru')))select.add(new Option(value,value));}
+function selectOptions(id,field){const select=$(id);select.replaceChildren(select.options[0]);for(const value of [...new Set(data.movements.map(r=>r[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru')))select.add(new Option(value,value));}
 const operatorName=r=>r.operator_name||data.operators?.[r.operator]?.name||r.operator;
-function initialize(){
+function refreshOptions(){
  for(const [id,field] of [['port','port'],['terminal','terminal'],['operator','operator'],['counterpart','counterpart_port'],['type','vessel_type']])selectOptions(id,field);
  const lines=new Map(data.movements.map(r=>[r.line_id,r.line_name]));
  // Include a selected but currently unavailable line instead of silently broadening a saved view.
  for(const id of state.lines)if(!lines.has(id))lines.set(id,id+' (нет данных)');
+ $('line-options').replaceChildren();
  for(const [id,name] of [...lines].sort((a,b)=>a[1].localeCompare(b[1],'ru'))){const label=el('label');const input=el('input');input.type='checkbox';input.value=id;input.addEventListener('change',()=>update({lines:[...$('line-options').querySelectorAll('input:checked')].map(i=>i.value)}));label.append(input,document.createTextNode(name));$('line-options').append(label);}
+}
+function initialize(){
  for(const id of ['port','terminal','operator','counterpart','type','status','sort','from','to'])$(id).addEventListener('change',()=>update({[id]:$(id).value}));
  $('query').addEventListener('input',()=>update({q:$('query').value},true));
  $('include-removed').addEventListener('change',()=>update({include_removed:$('include-removed').checked?'1':''}));
@@ -46,8 +49,9 @@ function render(){
  $('updated').textContent='Выгрузка: '+fullDate(data.generated_at);
  const age=(new Date()-new Date(data.generated_at))/3600000;
  const failed=data.sources.filter(s=>s.attempt_status==='failed'||s.parse_status==='failed'||!s.good_at);
- const old=data.sources.filter(s=>!s.good_at||(new Date()-new Date(s.source_published_on||s.good_at))/86400000>s.max_age_days);
+ const old=data.sources.filter(s=>sourceIsStale(s));
  const notices=[];
+ if(loadFailed)notices.push('Не удалось проверить обновления. Показаны последние загруженные данные.');
  if(age>8)notices.push('Выгрузка не обновлялась более 8 часов. Показаны последние сохранённые данные.');
  if(failed.length)notices.push('Не все источники удалось обновить. Для них сохранены прежние сведения.');
  if(data.sources.some(s=>s.parse_status==='partial'))notices.push('Часть строк источников требует проверки и не включена в табло.');
@@ -172,7 +176,7 @@ function showDetail(r){
  if(r.source_url)section.append(publicLink('Расписание источника',r.source_url));else section.append(el('p','Расписание предоставлено Park Logistics.'));
  section.append(el('p','Проверено '+fullDate(r.last_observed_at),'card-checked'));
  if(!r.present_in_latest_version)section.append(el('p','Запись отсутствует в последнем расписании.','notice'));
- if(r.source_is_stale||(new Date()-new Date(r.last_observed_at))>8*86400000)section.append(el('p','Источник устарел. Уточните сведения у оператора.','notice'));
+ if(r.source_is_stale||sourceIsStale(data.sources.find(s=>s.source_key===r.source_key)||{good_at:r.last_observed_at,max_age_days:8}))section.append(el('p','Источник устарел. Уточните сведения у оператора.','notice'));
  if(r.discrepancy)section.append(el('p',r.discrepancy,'notice'));
  if(r.history?.length){const details=el('details',undefined,'card-history');details.append(el('summary','История расписания этого рейса'));
   for(const item of [...r.history].reverse()){const text=el('p',undefined,'history-item');text.append(el('strong',timeText(item.day,item.clock)),el('span',(item.terminal||'Терминал не указан')+' · '+fullDate(item.known_at),'sub'));details.append(text);}section.append(details);
@@ -188,7 +192,21 @@ function showSources(){
   if(example?.source_url){const a=el('a','Открыть источник ↗');a.href=example.source_url;a.target='_blank';a.rel='noopener noreferrer';root.append(a);}
  }
 }
-async function load(){try{const response=await fetch('./data.json',{cache:'no-cache'});if(!response.ok)throw Error('HTTP');data=await response.json();if(data.schema_version!==1||!Array.isArray(data.movements))throw Error('Schema');initialize();}catch{$('updated').textContent='Данные временно недоступны';$('rows').replaceChildren(el('div','Не удалось загрузить расписание. Обновите страницу немного позже.','empty'));$('count').textContent='Ошибка загрузки';}}
+async function load(){
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
+ try{
+  const response=await fetch('./data.json',{cache:'no-cache',signal:controller.signal});
+  if(!response.ok)throw Error('HTTP');
+  const next=await response.json();
+  if(next.schema_version!==1||!Array.isArray(next.movements)||!Array.isArray(next.sources)||!Array.isArray(next.our_lines))throw Error('Schema');
+  data=next;loadFailed=false;refreshOptions();
+  if(!initialized){initialize();initialized=true;}else render();
+ }catch{
+  loadFailed=true;
+  if(data)render();
+  else{$('updated').textContent='Данные временно недоступны';$('rows').replaceChildren(el('div','Не удалось загрузить расписание. Обновите страницу немного позже.','empty'));$('count').textContent='Ошибка загрузки';}
+ }finally{clearTimeout(timeout);}
+}
 load();
 setInterval(()=>{if(data)render();},60000);
-setInterval(async()=>{try{const r=await fetch('./data.json',{cache:'no-cache'});if(!r.ok)throw Error('HTTP');const next=await r.json();if(next.schema_version!==1||!Array.isArray(next.movements))throw Error('Schema');data=next;render();}catch{$('warning').textContent='Не удалось проверить обновления. Показаны последние загруженные данные.';$('warning').hidden=false;}},300000);
+setInterval(load,300000);
