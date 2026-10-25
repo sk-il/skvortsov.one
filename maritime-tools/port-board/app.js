@@ -1,10 +1,10 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,sourceIsStale} from './model.mjs?v=8';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=9';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
 let data,state=readState(location.search),day=today(),initialized=false,loadFailed=false;
-const fullDate=v=>v?new Intl.DateTimeFormat('ru',{timeZone:'Europe/Kaliningrad',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'нет данных';
-const shortDate=v=>v?new Intl.DateTimeFormat('ru',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(v+'T12:00:00Z')):'—';
+const dateDrafts=new Set();
+const fullDate=formatTimestamp;
 const timeText=dateTimeLabel;
 function cardButton(label,kind,id,cls='place-link'){
  const profile=data[kind]?.[id];const node=el(profile?'button':'span',label,cls);
@@ -28,7 +28,17 @@ function refreshOptions(){
  for(const [id,name] of [...lines].sort((a,b)=>a[1].localeCompare(b[1],'ru'))){const label=el('label');const input=el('input');input.type='checkbox';input.value=id;input.addEventListener('change',()=>update({lines:[...$('line-options').querySelectorAll('input:checked')].map(i=>i.value)}));label.append(input,document.createTextNode(name));$('line-options').append(label);}
 }
 function initialize(){
- for(const id of ['port','terminal','operator','counterpart','type','status','sort','from','to'])$(id).addEventListener('change',()=>update({[id]:$(id).value}));
+ for(const id of ['port','terminal','operator','counterpart','type','status','sort'])$(id).addEventListener('change',()=>update({[id]:$(id).value}));
+ for(const id of ['from','to']){
+  $(id).addEventListener('change',()=>{
+   const value=parseDisplayDate($(id).value),invalid=value===null;
+   $(id).setAttribute('aria-invalid',String(invalid));
+   if(invalid){dateDrafts.add(id);$('date-error').textContent='Введите существующую дату в формате ДД.ММ.ГГГГ.';return;}
+   dateDrafts.delete(id);update({[id]:value});
+  });
+  $(id+'-picker').addEventListener('change',()=>{dateDrafts.delete(id);$(id).setAttribute('aria-invalid','false');update({[id]:$(id+'-picker').value});});
+  $(id+'-picker').addEventListener('click',()=>{try{$(id+'-picker').showPicker?.();}catch{/* Native picker remains available. */}});
+ }
  $('query').addEventListener('input',()=>update({q:$('query').value},true));
  $('include-removed').addEventListener('change',()=>update({include_removed:$('include-removed').checked?'1':''}));
  document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>update({tab:b.dataset.tab})));
@@ -46,36 +56,34 @@ function ours(){return state.lines.length===data.our_lines.length&&data.our_line
 function toast(text){$('toast').textContent=text;$('toast').hidden=false;setTimeout(()=>$('toast').hidden=true,2600);}
 function render(){
  day=today();
- $('updated').textContent='Выгрузка: '+fullDate(data.generated_at);
- const age=(new Date()-new Date(data.generated_at))/3600000;
- const failed=data.sources.filter(s=>s.attempt_status==='failed'||s.parse_status==='failed'||!s.good_at);
- const notices=[];
- if(loadFailed)notices.push('Не удалось проверить обновления. Показаны последние загруженные данные.');
- if(age>8)notices.push('Выгрузка не обновлялась более 8 часов. Показаны последние сохранённые данные.');
- if(failed.length)notices.push('Не все источники удалось обновить. Для них сохранены прежние сведения.');
- if(data.sources.some(s=>s.parse_status==='partial'))notices.push('Часть строк источников требует проверки и не включена в табло.');
+ $('updated').textContent='Обновлено: '+fullDate(data.generated_at);
+ const rows=filterRows(data.movements,state,day),range=dateRange(state,day);
+ const notices=boardNotices(data,{rows,rangeEnd:range?.[1]||day});
  $('warning').textContent=notices.join(' ');$('warning').hidden=!notices.length;
  for(const b of document.querySelectorAll('[data-tab]'))b.setAttribute('aria-selected',b.dataset.tab===state.tab);
  $('rows').setAttribute('aria-labelledby',state.tab+'-tab');
  document.querySelectorAll('[data-period]').forEach(b=>b.classList.toggle('active',b.dataset.period===state.period));
  $('dates').hidden=state.period!=='custom';$('our-lines').setAttribute('aria-pressed',ours());
  $('include-removed').checked=state.include_removed==='1';
- for(const id of ['port','terminal','operator','counterpart','type','status','sort','from','to']){
+ for(const id of ['port','terminal','operator','counterpart','type','status','sort']){
   const input=$(id);if(input.tagName==='SELECT'&&state[id]&&![...input.options].some(o=>o.value===state[id]))input.add(new Option(state[id]+' (нет данных)',state[id]));input.value=state[id];
+ }
+ for(const id of ['from','to']){
+  if(!dateDrafts.has(id)&&document.activeElement!==$(id))$(id).value=formatDate(state[id],{empty:''});
+  $(id+'-picker').value=state[id];
  }
  if(document.activeElement!==$('query'))$('query').value=state.q;
  document.querySelectorAll('#line-options input').forEach(i=>i.checked=state.lines.includes(i.value));
  $('line-summary').textContent=!state.lines.length?'Все линии':ours()?'Наши линии':`Выбрано: ${state.lines.length}`;
  $('counterpart-label').firstChild.textContent=state.tab==='arrival'?'Откуда':'Куда';
  if(['terminal','operator','counterpart','type','status','include_removed'].some(k=>state[k])){$('advanced').hidden=false;$('more').setAttribute('aria-expanded','true');}
- $('date-error').textContent=dateRange(state,day)?'':'Укажите корректный период: начало не позже окончания.';
+ $('date-error').textContent=dateDrafts.size?'Введите существующую дату в формате ДД.ММ.ГГГГ.':range?'':'Укажите корректный период: начало не позже окончания.';
  const chips=$('chips');chips.replaceChildren();
  const labels={port:'Район',terminal:'Терминал',operator:'Оператор',counterpart:state.tab==='arrival'?'Откуда':'Куда',type:'Тип',status:'Статус',q:'Поиск'};
  for(const [k,label] of Object.entries(labels))if(state[k]){const b=el('button',`${label}: ${k==='status'?statusNames[state[k]]||state[k]:state[k]} ×`);b.addEventListener('click',()=>update({[k]:''}));chips.append(b);}
  for(const id of state.lines){const name=data.movements.find(r=>r.line_id===id)?.line_name||id;const b=el('button',name+' ×');b.addEventListener('click',()=>update({lines:state.lines.filter(x=>x!==id)}));chips.append(b);}
  if(state.include_removed){const b=el('button','Включая отсутствующие в расписании ×');b.addEventListener('click',()=>update({include_removed:''}));chips.append(b);}
  if(chips.children.length){const reset=el('button','Сбросить фильтры','reset');reset.addEventListener('click',resetFilters);chips.append(reset);}
- const rows=filterRows(data.movements,state,day);
  $('count').textContent=`${state.tab==='arrival'?'Прибытий':'Отправлений'}: ${rows.length} · ${new Set(rows.map(r=>r.vessel)).size} судов`;
  const target=$('rows');target.replaceChildren();
  if(!rows.length){const empty=el('div',undefined,'empty');empty.append(el('h2','По этим условиям записей нет'),el('p','Измените период или фильтры.'));const b=el('button','Ближайшие 14 дней · все линии');b.addEventListener('click',()=>update({...defaults,tab:state.tab,lines:[],period:'14'}));empty.append(b);target.append(empty);return;}
@@ -126,7 +134,7 @@ function showOperator(r){
   root.append(details);
  }
  const evidence=el('details',undefined,'operator-sources');evidence.append(el('summary','Источники и дата проверки'));
- evidence.append(el('p','Карточка проверена: '+fullDate(profile.checked_at)));
+ checked(evidence,profile.checked_at);
  for(const s of profile.sources||[]){const p=el('p');p.append(publicLink(s.label,s.url));evidence.append(p);}
  root.append(evidence);
 }
@@ -134,7 +142,7 @@ const vesselTypes={container:'Контейнеровоз',general_cargo:'Сух�
 const number=v=>v===null||v===undefined?null:new Intl.NumberFormat('ru',{maximumFractionDigits:2}).format(Number(v));
 function country(code){if(!code)return null;try{return new Intl.DisplayNames('ru',{type:'region'}).of(code);}catch{return code;}}
 function facts(root,items){const dl=el('dl',undefined,'card-facts');for(const [label,value] of items)if(value!==null&&value!==undefined&&value!==''){const dd=el('dd');dd.append(value instanceof Node?value:document.createTextNode(String(value)));dl.append(el('dt',label),dd);}if(dl.children.length)root.append(dl);}
-function checked(root,at){if(at)root.append(el('p','Карточка проверена '+shortDate(at.slice(0,10)),'card-checked'));}
+function checked(root,at){if(at)root.append(el('p','Проверено: '+formatTimestamp(at,{dateOnly:true}),'card-checked'));}
 function showLocation(kind,p){
  const terminal=kind==='terminals';openDialog(terminal?'ТЕРМИНАЛ':'ПОРТ');const root=$('detail-content');
  root.append(el('h2',terminal?p.full_name||p.name:p.name));
@@ -173,21 +181,26 @@ function showDetail(r){
  const op=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator-link');if(op.tagName==='BUTTON')op.addEventListener('click',()=>showOperator(r));
  facts(section,[['Оператор',op],['Отправление',route.departure],['Прибытие',route.arrival],['Статус',statusNames[rowStatus(r,day)]]]);
  if(r.source_url)section.append(publicLink('Расписание источника',r.source_url));else section.append(el('p','Расписание предоставлено Park Logistics.'));
- section.append(el('p','Проверено '+fullDate(r.last_observed_at),'card-checked'));
- if(!r.present_in_latest_version)section.append(el('p','Запись отсутствует в последнем расписании.','notice'));
- if(r.source_is_stale||sourceIsStale(data.sources.find(s=>s.source_key===r.source_key)||{good_at:r.last_observed_at,max_age_days:8}))section.append(el('p','Источник устарел. Уточните сведения у оператора.','notice'));
- if(r.discrepancy)section.append(el('p',r.discrepancy,'notice'));
+ section.append(el('p','Расписание получено: '+fullDate(r.last_observed_at),'card-checked'));
+ const notes=[];
+ if(!r.present_in_latest_version)notes.push('Запись отсутствует в последнем расписании.');
+ if(r.discrepancy)notes.push(r.discrepancy);
+ if(notes.length){const details=el('details',undefined,'card-history');details.append(el('summary','Примечания к расписанию'));for(const note of notes)details.append(el('p',note));section.append(details);}
  if(r.history?.length){const details=el('details',undefined,'card-history');details.append(el('summary','История расписания этого рейса'));
-  for(const item of [...r.history].reverse()){const text=el('p',undefined,'history-item');text.append(el('strong',timeText(item.day,item.clock)),el('span',(item.terminal||'Терминал не указан')+' · '+fullDate(item.known_at),'sub'));details.append(text);}section.append(details);
+  for(const item of [...r.history].reverse()){const text=el('p',undefined,'history-item');text.append(el('strong',timeText(item.day,item.clock)),el('span',(item.terminal||'Терминал не указан')+' · Зафиксировано: '+fullDate(item.known_at),'sub'));details.append(text);}section.append(details);
  }
  root.append(section);
 }
 function showSources(){
- openDialog('ПОКРЫТИЕ И СВЕЖЕСТЬ');const root=$('detail-content');root.append(el('h2','Источники данных'));
- root.append(el('p','Выгрузка сайта: '+fullDate(data.generated_at)));
- for(const s of data.sources){const example=data.movements.find(r=>r.source_key===s.source_key);root.append(el('h3',example?.line_name||s.source_key),el('p','Последняя проверка: '+fullDate(s.attempted_at)),el('p','Последние пригодные данные: '+fullDate(s.good_at)));
-  if(s.source_published_on)root.append(el('p','Дата обновления в источнике: '+shortDate(s.source_published_on)));
-  if(s.attempt_status==='failed'||s.parse_status==='failed'||!s.good_at)root.append(el('p','Обновление не удалось. Прежние данные не удалены.','notice'));
+ openDialog('ИСТОЧНИКИ');const root=$('detail-content');root.append(el('h2','Источники данных'));
+ root.append(el('p','Обновлено: '+fullDate(data.generated_at)),el('p','Время обновлений и проверок — по Калининграду.'));
+ if(loadFailed)root.append(el('p','Не удалось проверить обновление сайта. Показаны последние загруженные данные.','notice'));
+ for(const message of boardNotices(data))root.append(el('p',message,'notice'));
+ for(const s of data.sources){const example=data.movements.find(r=>r.source_key===s.source_key);root.append(el('h3',example?.line_name||s.source_key),el('p','Расписание получено: '+fullDate(s.good_at)));
+  if(s.source_published_on)root.append(el('p','Обновлено источником: '+formatDate(s.source_published_on,{empty:'—'})));
+  const messages=sourceNotices(s);
+  if(messages.length&&s.attempted_at)root.append(el('p','Последняя попытка обновления: '+fullDate(s.attempted_at)));
+  for(const message of messages)root.append(el('p',message,'notice'));
   if(example?.source_url){const a=el('a','Открыть источник ↗');a.href=example.source_url;a.target='_blank';a.rel='noopener noreferrer';root.append(a);}
  }
 }

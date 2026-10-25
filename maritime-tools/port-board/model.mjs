@@ -13,8 +13,50 @@ export function sourceIsStale(s,now=new Date()) {
 }
 export function addDays(day,n) {const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 export function weekday(day) {return ['ВС','ПН','ВТ','СР','ЧТ','ПТ','СБ'][new Date(day+'T12:00:00Z').getUTCDay()];}
-export function dateLabel(day) {return day?day.split('-').reverse().join('.')+' · '+weekday(day):'Дата не указана';}
-export function dateTimeLabel(day,clock) {return dateLabel(day)+(day&&clock?' · '+clock.slice(0,5):'');}
+function validDay(day) {
+ return typeof day==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day)
+  &&!Number.isNaN(Date.parse(day+'T12:00:00Z'))&&new Date(day+'T12:00:00Z').toISOString().slice(0,10)===day;
+}
+export function formatDate(day,{withWeekday=false,empty='Дата не указана'}={}) {
+ return validDay(day)?day.split('-').reverse().join('.')+(withWeekday?' · '+weekday(day):''):empty;
+}
+export function formatTimestamp(value,{dateOnly=false}={}) {
+ if(!value)return '—';
+ if(validDay(value))return formatDate(value);
+ const at=new Date(value);if(Number.isNaN(at.getTime()))return '—';
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kaliningrad',
+  day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(at).map(p=>[p.type,p.value]));
+ const date=`${parts.day}.${parts.month}.${parts.year}`;
+ return date+(dateOnly?'':` ${parts.hour}:${parts.minute}`);
+}
+export function parseDisplayDate(value) {
+ const text=String(value||'').trim();if(!text)return '';
+ const match=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec(text);
+ const day=match&&`${match[3]}-${match[2]}-${match[1]}`;
+ return validDay(day)?day:null;
+}
+export function dateLabel(day) {return formatDate(day,{withWeekday:true});}
+export function dateTimeLabel(day,clock) {
+ const time=typeof clock==='string'&&/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?$/.test(clock)?clock.slice(0,5):null;
+ return dateLabel(day)+(validDay(day)&&time?' · '+time:'');
+}
+export function sourceNotices(source,now=new Date()) {
+ const messages=[];
+ if(!source.good_at)messages.push('Нет пригодного расписания.');
+ if(source.attempt_status==='failed'||source.parse_status==='failed')messages.push(source.good_at
+  ?'Обновление не удалось. Используется предыдущая версия.':'Не удалось получить расписание.');
+ if(source.parse_status==='partial')messages.push('Часть строк не включена в табло.');
+ if(source.good_at&&sourceIsStale(source,now))messages.push('Расписание требует обновления.');
+ return messages;
+}
+export function boardNotices(data,{now=new Date(),rows=[],rangeEnd=today(now)}={}) {
+ const messages=[],stamp=new Date(data.generated_at);
+ if(!data.generated_at||Number.isNaN(stamp.getTime())||now-stamp>8*3600000)messages.push('Обновление табло задерживается.');
+ const keys=new Set(rows.map(r=>r.source_key));
+ const sources=keys.size?data.sources.filter(s=>keys.has(s.source_key)):data.sources;
+ if(rangeEnd>=today(now)&&sources.length&&sources.every(s=>!s.good_at))messages.push('Нет пригодных расписаний для выбранного вида.');
+ return messages;
+}
 export function voyageEndpoints(r) {
  const own={port:r.port,terminal:r.terminal,port_id:r.port_id,terminal_id:r.terminal_id,...movementMoment(r)};
  const other={port:r.counterpart_port,terminal:r.counterpart_terminal,port_id:r.counterpart_port_id,terminal_id:r.counterpart_terminal_id,
