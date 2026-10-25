@@ -49,13 +49,11 @@ function render(){
  $('updated').textContent='Выгрузка: '+fullDate(data.generated_at);
  const age=(new Date()-new Date(data.generated_at))/3600000;
  const failed=data.sources.filter(s=>s.attempt_status==='failed'||s.parse_status==='failed'||!s.good_at);
- const old=data.sources.filter(s=>sourceIsStale(s));
  const notices=[];
  if(loadFailed)notices.push('Не удалось проверить обновления. Показаны последние загруженные данные.');
  if(age>8)notices.push('Выгрузка не обновлялась более 8 часов. Показаны последние сохранённые данные.');
  if(failed.length)notices.push('Не все источники удалось обновить. Для них сохранены прежние сведения.');
  if(data.sources.some(s=>s.parse_status==='partial'))notices.push('Часть строк источников требует проверки и не включена в табло.');
- if(old.length)notices.push('Есть устаревшие источники — проверьте свежесть перед использованием.');
  $('warning').textContent=notices.join(' ');$('warning').hidden=!notices.length;
  for(const b of document.querySelectorAll('[data-tab]'))b.setAttribute('aria-selected',b.dataset.tab===state.tab);
  $('rows').setAttribute('aria-labelledby',state.tab+'-tab');
