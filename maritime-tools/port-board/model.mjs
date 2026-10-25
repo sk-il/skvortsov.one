@@ -30,7 +30,8 @@ export function formatTimestamp(value,{dateOnly=false}={}) {
  return date+(dateOnly?'':` ${parts.hour}:${parts.minute}`);
 }
 export function parseDisplayDate(value) {
- const text=String(value||'').trim();if(!text)return '';
+ let text=String(value||'').trim();if(!text)return '';
+ if(/^\d{8}$/.test(text))text=text.slice(0,2)+'.'+text.slice(2,4)+'.'+text.slice(4);
  const match=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec(text);
  const day=match&&`${match[3]}-${match[2]}-${match[1]}`;
  return validDay(day)?day:null;

@@ -1,4 +1,4 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=9';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=10';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
@@ -34,7 +34,7 @@ function initialize(){
    const value=parseDisplayDate($(id).value),invalid=value===null;
    $(id).setAttribute('aria-invalid',String(invalid));
    if(invalid){dateDrafts.add(id);$('date-error').textContent='Введите существующую дату в формате ДД.ММ.ГГГГ.';return;}
-   dateDrafts.delete(id);update({[id]:value});
+   dateDrafts.delete(id);$(id).value=formatDate(value,{empty:''});update({[id]:value});
   });
   $(id+'-picker').addEventListener('change',()=>{dateDrafts.delete(id);$(id).setAttribute('aria-invalid','false');update({[id]:$(id+'-picker').value});});
   $(id+'-picker').addEventListener('click',()=>{try{$(id+'-picker').showPicker?.();}catch{/* Native picker remains available. */}});
