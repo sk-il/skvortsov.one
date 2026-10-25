@@ -1,5 +1,5 @@
 export const defaults = {tab:'arrival',period:'today',port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',sort:'asc',from:'',to:'',include_removed:''};
-export const statusNames = {scheduled:'Запланировано',in_transit:'В пути',arrived:'Прибыло',departed:'Отправилось',unconfirmed:'Не подтверждено'};
+export const statusNames = {scheduled:'Запланировано',in_transit:'В пути',arrived:'Прибыло',departed:'Отправилось',unconfirmed:'Не подтверждено',awaiting_departure:'Ожидает отправления'};
 export function today(now=new Date()) {return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);}
 export function sourceIsStale(s,now=new Date()) {
  if(s.stale_after)return now>=new Date(s.stale_after);

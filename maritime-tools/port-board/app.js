@@ -1,4 +1,4 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,sourceIsStale} from './model.mjs?v=7';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,sourceIsStale} from './model.mjs?v=8';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
@@ -88,16 +88,17 @@ function render(){
  for(const r of rows){
   const tr=el('tr',undefined,'data-row');const cells=labelsHead.map(label=>{const td=el('td');td.dataset.label=label;tr.append(td);return td;});
   const moment=movementMoment(r),status=rowStatus(r,day);
-  const date=el('span',dateLabel(moment.day),'movement-date state-'+status);
+  const colorStatus=status==='awaiting_departure'?'unconfirmed':status;
+  const date=el('span',dateLabel(moment.day),'movement-date state-'+colorStatus);
   cells[0].append(date);
-  if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock state-'+status));
+  if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock state-'+colorStatus));
   const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[1].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
   place(cells[2],r.counterpart_port,r.counterpart_terminal,r.counterpart_port_id,r.counterpart_terminal_id);
   place(cells[3],r.port,r.terminal,r.port_id,r.terminal_id);
   const operator=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator');
   if(operator.tagName==='BUTTON'){operator.classList.add('operator-link');operator.title='Об операторе';operator.setAttribute('aria-label','Об операторе '+operatorName(r));operator.addEventListener('click',()=>showOperator(r));}
   cells[4].append(operator);
-  cells[5].append(el('span',statusNames[status],'status '+status));
+  cells[5].append(el('span',statusNames[status],'status '+colorStatus));
   body.append(tr);
  }
  table.append(body);target.append(table);
