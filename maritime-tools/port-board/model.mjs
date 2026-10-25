@@ -64,6 +64,14 @@ export function voyageEndpoints(r) {
   day:r.counterpart_display_date||r.counterpart_scheduled_date||null,clock:(Object.hasOwn(r,'counterpart_display_time')?r.counterpart_display_time:r.counterpart_scheduled_time)?.slice(0,5)||null};
  return r.event_type==='arrival'?{departure:other,arrival:own}:{departure:own,arrival:other};
 }
+export function voyageNotes(r,day) {
+ const notes=[],end=voyageEndpoints(r).arrival.day||movementMoment(r).day;
+ // Sources routinely drop old voyages; hiding this note does not confirm a past plan.
+ const historical=Boolean(end&&end<day)||rowStatus(r,day)==='arrived';
+ if(!r.present_in_latest_version&&!historical)notes.push('Запись отсутствует в последнем расписании.');
+ if(r.discrepancy)notes.push(r.discrepancy);
+ return notes;
+}
 export function neighboringVoyages(rows,selected,day) {
  const sameVessel=r=>{
   if(r.vessel_id!=null&&selected.vessel_id!=null)return String(r.vessel_id)===String(selected.vessel_id);

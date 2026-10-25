@@ -1,4 +1,4 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,neighboringVoyages,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=11';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,voyageNotes,neighboringVoyages,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=12';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
@@ -191,9 +191,7 @@ function showDetail(r){
  if(r.source_url)source.append(publicLink('Расписание источника',r.source_url));else if(r.source_key==='park_logistics')source.append(el('span','Расписание предоставлено Park Logistics.'));
  if(r.last_observed_at)source.append(el('span','Расписание получено: '+fullDate(r.last_observed_at)));
  section.append(source);
- const notes=[];
- if(!r.present_in_latest_version)notes.push('Запись отсутствует в последнем расписании.');
- if(r.discrepancy)notes.push(r.discrepancy);
+ const notes=voyageNotes(r,day);
  if(notes.length){const note=el('div',undefined,'voyage-notes');note.append(el('strong','Примечание. '),document.createTextNode(notes.join(' ')));section.append(note);}
  root.append(section);
  const history=el('section',undefined,'vessel-voyages');history.setAttribute('aria-label','Два предыдущих, текущий и два следующих рейса');history.append(el('h3','Рейсы судна'));
