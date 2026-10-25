@@ -1,11 +1,10 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=10';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,neighboringVoyages,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=11';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
 let data,state=readState(location.search),day=today(),initialized=false,loadFailed=false;
 const dateDrafts=new Set();
 const fullDate=formatTimestamp;
-const timeText=dateTimeLabel;
 function cardButton(label,kind,id,cls='place-link'){
  const profile=data[kind]?.[id];const node=el(profile?'button':'span',label,cls);
  if(profile){node.title=(kind==='ports'?'О порте ':'О терминале ')+label;node.setAttribute('aria-label',node.title);node.addEventListener('click',()=>showLocation(kind,profile));}
@@ -110,7 +109,7 @@ function render(){
  table.append(body);target.append(table);
 }
 function resetFilters(){update({port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',include_removed:''});}
-function openDialog(label){$('detail-label').textContent=label;$('detail-content').replaceChildren();if(!$('detail').open)$('detail').showModal();$('detail').scrollTop=0;$('close-detail').focus({preventScroll:true});}
+function openDialog(label){$('detail-label').textContent=label;$('detail-content').replaceChildren();$('detail-content').className='';if(!$('detail').open)$('detail').showModal();$('detail').scrollTop=0;$('close-detail').focus({preventScroll:true});}
 function publicLink(label,url){
  try{const parsed=new URL(url);if(!['https:','http:'].includes(parsed.protocol)||parsed.username||parsed.password)return el('span',label);}catch{return el('span',label);}
  const a=el('a',label+' ↗');a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;
@@ -162,34 +161,51 @@ function showLocation(kind,p){
 }
 function showDetail(r){
  const p=data.vessels?.[r.vessel_id]||{name:r.vessel,imo:r.imo};
- openDialog('СУДНО');const root=$('detail-content');root.append(el('h2',p.name));
- const subtitle=[p.name_international&&p.name_international.toLocaleLowerCase()!==p.name.toLocaleLowerCase()?p.name_international:null,vesselTypes[p.vessel_type]||p.vessel_type].filter(Boolean).join(' · ');
+ openDialog('СУДНО');const root=$('detail-content');root.className='vessel-card-content';root.append(el('h2',p.name));
+ const subtitle=[p.name_international&&p.name_international.toLocaleLowerCase()!==p.name.toLocaleLowerCase()?p.name_international:null,vesselTypes[p.vessel_type]||p.vessel_type,country(p.flag_country_code),p.built_year].filter(Boolean).join(' · ');
  if(subtitle)root.append(el('p',subtitle,'card-subtitle'));
  const links=el('div',undefined,'card-links');
  for(const [label,url] of [['MarineTraffic',p.marinetraffic_url],['VesselFinder',p.vesselfinder_url]])if(url)links.append(publicLink(label,url));
  if(links.children.length)root.append(links);
- facts(root,[['IMO',p.imo],['MMSI',p.mmsi],['Флаг',country(p.flag_country_code)],['Позывной',p.call_sign],['Год постройки',p.built_year],
-  ['Длина',p.length_overall_m?number(p.length_overall_m)+' м':null],['Ширина',p.beam_m?number(p.beam_m)+' м':null],
-  ['Дедвейт',p.deadweight_t?number(p.deadweight_t)+' т':null],['Валовая вместимость',p.gross_tonnage?number(p.gross_tonnage)+' GT':null]]);
- checked(root,p.checked_at);
- const section=el('section',undefined,'voyage-card');section.append(el('h3',r.voyage_number?'Рейс '+r.voyage_number:'Выбранное движение'));
- const endpoints=voyageEndpoints(r),route={};
- for(const [key,endpoint] of Object.entries(endpoints)){
-  const block=el('div');block.append(el('span',dateTimeLabel(endpoint.day,endpoint.clock),'route-moment'));
-  place(block,endpoint.port,endpoint.terminal,endpoint.port_id,endpoint.terminal_id);route[key]=block;
+ const dimensions=p.length_overall_m&&p.beam_m?number(p.length_overall_m)+' × '+number(p.beam_m)+' м':null;
+ const attributes=el('dl',undefined,'vessel-facts');
+ for(const [label,value] of [['IMO',p.imo],['MMSI',p.mmsi],['Позывной',p.call_sign],
+  [dimensions?'Размеры':p.length_overall_m?'Длина':'Ширина',dimensions||(p.length_overall_m?number(p.length_overall_m)+' м':p.beam_m?number(p.beam_m)+' м':null)],
+  ['Дедвейт',p.deadweight_t?number(p.deadweight_t)+' т':null],['Вместимость',p.gross_tonnage?number(p.gross_tonnage)+' GT':null]]){
+  if(value==null||value==='')continue;
+  const item=el('div');item.append(el('dt',label),el('dd',String(value)));attributes.append(item);
  }
- const op=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator-link');if(op.tagName==='BUTTON')op.addEventListener('click',()=>showOperator(r));
- facts(section,[['Оператор',op],['Отправление',route.departure],['Прибытие',route.arrival],['Статус',statusNames[rowStatus(r,day)]]]);
- if(r.source_url)section.append(publicLink('Расписание источника',r.source_url));else section.append(el('p','Расписание предоставлено Park Logistics.'));
- section.append(el('p','Расписание получено: '+fullDate(r.last_observed_at),'card-checked'));
+ if(attributes.children.length)root.append(attributes);
+ checked(root,p.checked_at);
+ const section=el('section',undefined,'vessel-voyage');
+ const status=rowStatus(r,day),statusClass=status==='awaiting_departure'?'unconfirmed':status;
+ const title=el('div',undefined,'voyage-title');title.append(el('h3',r.voyage_number?'Рейс '+r.voyage_number:'Рейс'),el('span',statusNames[status],'status '+statusClass));section.append(title);
+ const endpoints=voyageEndpoints(r),route=el('div',undefined,'vessel-route');
+ for(const [key,endpoint] of Object.entries(endpoints)){
+  const block=el('div');block.append(el('div',key==='departure'?'Отправление':'Прибытие','route-label'));
+  const location=el('div',undefined,'route-place');place(location,endpoint.port,endpoint.terminal,endpoint.port_id,endpoint.terminal_id);
+  block.append(location,el('div',dateTimeLabel(endpoint.day,endpoint.clock),'route-moment'));route.append(block);
+ }
+ section.append(route);
+ const source=el('div',undefined,'voyage-source');
+ if(r.source_url)source.append(publicLink('Расписание источника',r.source_url));else if(r.source_key==='park_logistics')source.append(el('span','Расписание предоставлено Park Logistics.'));
+ if(r.last_observed_at)source.append(el('span','Расписание получено: '+fullDate(r.last_observed_at)));
+ section.append(source);
  const notes=[];
  if(!r.present_in_latest_version)notes.push('Запись отсутствует в последнем расписании.');
  if(r.discrepancy)notes.push(r.discrepancy);
- if(notes.length){const details=el('details',undefined,'card-history');details.append(el('summary','Примечания к расписанию'));for(const note of notes)details.append(el('p',note));section.append(details);}
- if(r.history?.length){const details=el('details',undefined,'card-history');details.append(el('summary','История расписания этого рейса'));
-  for(const item of [...r.history].reverse()){const text=el('p',undefined,'history-item');text.append(el('strong',timeText(item.day,item.clock)),el('span',(item.terminal||'Терминал не указан')+' · Зафиксировано: '+fullDate(item.known_at),'sub'));details.append(text);}section.append(details);
- }
+ if(notes.length){const note=el('div',undefined,'voyage-notes');note.append(el('strong','Примечание. '),document.createTextNode(notes.join(' ')));section.append(note);}
  root.append(section);
+ const history=el('section',undefined,'vessel-voyages');history.setAttribute('aria-label','Два предыдущих, текущий и два следующих рейса');history.append(el('h3','Рейсы судна'));
+ const head=el('div',undefined,'voyage-history-head');head.setAttribute('aria-hidden','true');for(const label of ['Рейс','Отправление','Прибытие','Статус'])head.append(el('span',label));history.append(head);
+ const list=el('div');list.setAttribute('role','list');
+ for(const item of neighboringVoyages(data.movements,r,day)){
+  const row=el('div',undefined,'voyage-history-row');row.setAttribute('role','listitem');if(item.movement_id===r.movement_id)row.setAttribute('aria-current','true');
+  row.append(el('div',item.voyage_number||'—','voyage-history-number'));
+  for(const [key,endpoint] of Object.entries(voyageEndpoints(item))){const cell=el('div',undefined,'voyage-history-'+key);cell.append(el('div',endpoint.port||'—','voyage-history-city'),el('div',formatDate(endpoint.day,{empty:'—'}),'voyage-history-date'));row.append(cell);}
+  const status=rowStatus(item,day);row.append(el('div',statusNames[status],'status '+(status==='awaiting_departure'?'unconfirmed':status)));list.append(row);
+ }
+ history.append(list);root.append(history);
 }
 function showSources(){
  openDialog('ИСТОЧНИКИ');const root=$('detail-content');root.append(el('h2','Источники данных'));

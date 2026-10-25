@@ -64,6 +64,25 @@ export function voyageEndpoints(r) {
   day:r.counterpart_display_date||r.counterpart_scheduled_date||null,clock:(Object.hasOwn(r,'counterpart_display_time')?r.counterpart_display_time:r.counterpart_scheduled_time)?.slice(0,5)||null};
  return r.event_type==='arrival'?{departure:other,arrival:own}:{departure:own,arrival:other};
 }
+export function neighboringVoyages(rows,selected,day) {
+ const sameVessel=r=>{
+  if(r.vessel_id!=null&&selected.vessel_id!=null)return String(r.vessel_id)===String(selected.vessel_id);
+  if(r.imo&&selected.imo)return String(r.imo)===String(selected.imo);
+  return Boolean(r.vessel&&selected.vessel)&&r.vessel.trim().toLocaleLowerCase('ru')===selected.vessel.trim().toLocaleLowerCase('ru');
+ };
+ const records=new Map();
+ for(const r of [...rows,selected]){
+  if(!sameVessel(r))continue;
+  if(r.movement_id!==selected.movement_id&&!r.present_in_latest_version
+   &&!(r.scheduled_date<day)&&movementMoment(r).kind!=='actual'&&r.event_confirmed!==true)continue;
+  // A call can contain both an inbound and an outbound voyage: never deduplicate by call ID or voyage number.
+  records.set(r.movement_id,r);
+ }
+ const date=r=>{const e=voyageEndpoints(r);return e.departure.day||e.arrival.day||'9999-12-31';};
+ const ordered=[...records.values()].sort((a,b)=>date(a).localeCompare(date(b))||String(a.movement_id).localeCompare(String(b.movement_id)));
+ const index=ordered.findIndex(r=>r.movement_id===selected.movement_id);
+ return ordered.slice(Math.max(0,index-2),index+3);
+}
 export function readState(search) {
  const p=new URLSearchParams(search),s={...defaults,lines:[]};
  for(const k of Object.keys(defaults)) if(p.has(k)&&k!=='lines')s[k]=p.get(k).slice(0,180);
