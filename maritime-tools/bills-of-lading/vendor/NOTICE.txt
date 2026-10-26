@@ -1,0 +1,30 @@
+Third-party dependencies bundled for local browser processing
+
+PDF.js 5.6.205 — Apache-2.0
+https://github.com/mozilla/pdf.js
+License: pdfjs-dist-LICENSE.txt; standard_fonts/, cmaps/, wasm/ retain upstream licenses.
+
+pdf-lib 1.17.1 — MIT
+https://github.com/Hopding/pdf-lib
+License: pdf-lib-LICENSE.txt
+
+@pdf-lib/fontkit 1.1.1 — MIT
+https://github.com/Hopding/fontkit
+Authors: Andrew Dillon, Devon Govett.
+Original package metadata and README with license declaration are retained in
+fontkit-package.json and fontkit-README.md.
+Distribution: https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js
+
+JSZip 3.10.1 — MIT or GPL-3.0; used under MIT
+https://github.com/Stuk/jszip
+License: jszip-LICENSE.txt
+
+Carlito Regular — SIL Open Font License 1.1
+https://github.com/googlefonts/carlito
+License: Carlito-OFL.txt
+
+Montserrat — SIL Open Font License 1.1
+Reused from dashboard/static/Montserrat.ttf.
+License: Montserrat-OFL.txt
+
+All dependencies are served locally with this page. No CDN or external API is used.
