@@ -87,7 +87,7 @@ function render(){
  const target=$('rows');target.replaceChildren();
  if(!rows.length){const empty=el('div',undefined,'empty');empty.append(el('h2','По этим условиям записей нет'),el('p','Измените период или фильтры.'));const b=el('button','Ближайшие 14 дней · все линии');b.addEventListener('click',()=>update({...defaults,tab:state.tab,lines:[],period:'14'}));empty.append(b);target.append(empty);return;}
  const table=el('table'),head=el('thead'),hr=el('tr');
- const labelsHead=['ДАТА И ВРЕМЯ','СУДНО / РЕЙС','ОТКУДА','КУДА','ОПЕРАТОР','СТАТУС'];
+ const labelsHead=[state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ','СУДНО / РЕЙС','ОТКУДА','КУДА','ОПЕРАТОР','СТАТУС'];
  labelsHead.forEach(t=>{const th=el('th',t);th.scope='col';hr.append(th);});head.append(hr);table.append(head);
  const body=el('tbody');
  for(const r of rows){
