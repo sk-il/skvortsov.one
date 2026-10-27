@@ -87,7 +87,7 @@ function render(){
  const target=$('rows');target.replaceChildren();
  if(!rows.length){const empty=el('div',undefined,'empty');empty.append(el('h2','По этим условиям записей нет'),el('p','Измените период или фильтры.'));const b=el('button','Ближайшие 14 дней · все линии');b.addEventListener('click',()=>update({...defaults,tab:state.tab,lines:[],period:'14'}));empty.append(b);target.append(empty);return;}
  const table=el('table'),head=el('thead'),hr=el('tr');
- const labelsHead=['ДАТА И ВРЕМЯ','СУДНО / РЕЙС',state.tab==='arrival'?'ОТКУДА':'КУДА',state.tab==='arrival'?'ПРИБЫТИЕ':'ОТПРАВЛЕНИЕ','ОПЕРАТОР','СТАТУС'];
+ const labelsHead=['ДАТА И ВРЕМЯ','СУДНО / РЕЙС','ОТКУДА','КУДА','ОПЕРАТОР','СТАТУС'];
  labelsHead.forEach(t=>{const th=el('th',t);th.scope='col';hr.append(th);});head.append(hr);table.append(head);
  const body=el('tbody');
  for(const r of rows){
@@ -98,8 +98,9 @@ function render(){
   cells[0].append(date);
   if(moment.clock)cells[0].append(el('span',moment.clock,'movement-clock state-'+colorStatus));
   const vessel=el('button',r.vessel,'vessel');vessel.addEventListener('click',()=>showDetail(r));cells[1].append(vessel,el('span',r.voyage_number||'Рейс не указан','voyage'));
-  place(cells[2],r.counterpart_port,r.counterpart_terminal,r.counterpart_port_id,r.counterpart_terminal_id);
-  place(cells[3],r.port,r.terminal,r.port_id,r.terminal_id);
+  const route=voyageEndpoints(r);
+  place(cells[2],route.departure.port,route.departure.terminal,route.departure.port_id,route.departure.terminal_id);
+  place(cells[3],route.arrival.port,route.arrival.terminal,route.arrival.port_id,route.arrival.terminal_id);
   const operator=el(data.operators?.[r.operator_key||r.operator]?'button':'span',operatorName(r),'operator');
   if(operator.tagName==='BUTTON'){operator.classList.add('operator-link');operator.title='Об операторе';operator.setAttribute('aria-label','Об операторе '+operatorName(r));operator.addEventListener('click',()=>showOperator(r));}
   cells[4].append(operator);
