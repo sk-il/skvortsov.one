@@ -27,4 +27,9 @@ Montserrat — SIL Open Font License 1.1
 Reused from dashboard/static/Montserrat.ttf.
 License: Montserrat-OFL.txt
 
+Calibri Regular / Bold 6.23 — Microsoft Corporation. All rights reserved.
+Font files obtained from https://github.com/wachin/Microsoft-Fonts/tree/main/microsoft-ttf
+Family information: https://learn.microsoft.com/en-us/typography/font-list/calibri
+Full font embedding is used for modified PDF text.
+
 All dependencies are served locally with this page. No CDN or external API is used.

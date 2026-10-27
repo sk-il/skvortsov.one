@@ -13,7 +13,7 @@ export async function analyze(bytes,{signal,onProgress=()=>{}}={}){
     if(await doc.getPermissions())throw Error('Защищённый PDF не поддерживается');
     const fields=await doc.getFieldObjects();
     if(fields && Object.values(fields).flat().some(f=>f.type==='signature'))throw Error('PDF с цифровой подписью не поддерживается');
-    const pages=[];
+    const pages=[],pageInfos=[];
     for(let n=1;n<=doc.numPages;n++){
       abort(signal);const page=await doc.getPage(n),vp=page.getViewport({scale:1});
       const content=await readTextContent(page,signal);
@@ -42,19 +42,23 @@ export async function analyze(bytes,{signal,onProgress=()=>{}}={}){
         if(h>0){const pixels=ctx.getImageData(x,y,w,h).data;for(let k=0;k<pixels.length;k+=4){if(pixels[k]<230||pixels[k+1]<230||pixels[k+2]<230){result.reason='В области вставки есть изображение или другие элементы';break}}}
         canvas.width=canvas.height=0;
       }
-      pages.push(result);page.cleanup();onProgress(n,doc.numPages);
+      pages.push(result);pageInfos.push({items,width:vp.width,height:vp.height,rotation:page.rotate,number:n,type:result.type,boundary:result.boundary});page.cleanup();onProgress(n,doc.numPages);
     }
-    return {pageCount:doc.numPages,docs:groupPages(pages)};
+    const docs=groupPages(pages);
+    const scan=await runWorker({action:'fields',bytes:bytes.slice(),pageInfos:pageInfos.filter(p=>docs.some(d=>d.type==='bill'&&!d.reason&&d.pages.includes(p.number)))},{signal});
+    for(const d of docs)d.fields=scan.fields.filter(f=>d.pages.includes(f.page));
+    return {pageCount:doc.numPages,docs};
   }finally{signal?.removeEventListener('abort',cancel);await task.destroy();}
 }
-export function generate(bytes,docs,assignments,{signal}={}){
+export function generate(bytes,docs,assignments,{signal,clausesEnabled=true}={}){return runWorker({bytes:bytes.slice(),docs,assignments,clausesEnabled},{signal})}
+function runWorker(data,{signal}={}){
   abort(signal);return new Promise((resolve,reject)=>{
-    const worker=new Worker(new URL('./writer.js',import.meta.url));
+    const worker=new Worker(new URL('./writer.js?v=20261027-2',import.meta.url));
     const finish=(fn,value)=>{worker.terminate();signal?.removeEventListener('abort',cancel);fn(value)};
     const cancel=()=>finish(reject,new DOMException('Отменено','AbortError'));
     signal?.addEventListener('abort',cancel,{once:true});
     worker.onmessage=e=>e.data.error?finish(reject,Error(e.data.error)):finish(resolve,e.data);
     worker.onerror=()=>finish(reject,Error('Не удалось сформировать PDF в браузере'));
-    const copy=bytes.slice();worker.postMessage({bytes:copy,docs,assignments},[copy.buffer]);
+    worker.postMessage(data,[data.bytes.buffer]);
   });
 }
