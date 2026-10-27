@@ -217,6 +217,10 @@ function showSources(){
   for(const message of messages)root.append(el('p',message,'notice'));
   if(example?.source_url){const a=el('a','Открыть источник ↗');a.href=example.source_url;a.target='_blank';a.rel='noopener noreferrer';root.append(a);}
  }
+ for(const s of data.observation_sources||[]){root.append(el('h3',s.name),el('p','Обновлено: '+fullDate(s.received_at)),el('p','Суда с данными: '+s.vessels));
+  if(s.failed_vessels)root.append(el('p','Не удалось обновить карточки: '+s.failed_vessels+'. Сохранены предыдущие сведения.'));
+  root.append(el('p','Последние сообщения AIS: '+fullDate(s.oldest_position_at)+' — '+fullDate(s.newest_position_at)));}
+
 }
 async function load(){
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
