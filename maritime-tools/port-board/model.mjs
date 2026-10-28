@@ -1,16 +1,6 @@
 export const defaults = {tab:'arrival',period:'today',port:'',lines:[],q:'',terminal:'',operator:'',counterpart:'',type:'',status:'',sort:'asc',from:'',to:'',include_removed:''};
 export const statusNames = {scheduled:'Запланировано',in_transit:'В пути',arrived:'Прибыло',departed:'Отправилось',unconfirmed:'Не подтверждено',awaiting_departure:'Ожидает отправления'};
 export function today(now=new Date()) {return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);}
-export function sourceIsStale(s,now=new Date()) {
- if(s.stale_after)return now>=new Date(s.stale_after);
- if(typeof s.stale==='boolean')return s.stale;
- if(!s.good_at)return true;
- // Compatibility with older JSON: same calendar rule as PostgreSQL and the bot.
- const local=v=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Belgrade',year:'numeric',month:'2-digit',day:'2-digit'}).format(v);
- const observed=local(new Date(s.good_at));
- const basis=s.source_published_on&&s.source_published_on<observed?s.source_published_on:observed;
- return (Date.parse(local(now)+'T12:00:00Z')-Date.parse(basis+'T12:00:00Z'))/86400000>s.max_age_days;
-}
 export function addDays(day,n) {const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 export function weekday(day) {return ['ВС','ПН','ВТ','СР','ЧТ','ПТ','СБ'][new Date(day+'T12:00:00Z').getUTCDay()];}
 function validDay(day) {
@@ -47,7 +37,6 @@ export function sourceNotices(source,now=new Date()) {
  if(source.attempt_status==='failed'||source.parse_status==='failed')messages.push(source.good_at
   ?'Обновление не удалось. Используется предыдущая версия.':'Не удалось получить расписание.');
  if(source.parse_status==='partial')messages.push('Часть строк не включена в табло.');
- if(source.good_at&&sourceIsStale(source,now))messages.push('Расписание требует обновления.');
  return messages;
 }
 export function boardNotices(data,{now=new Date(),rows=[],rangeEnd=today(now)}={}) {

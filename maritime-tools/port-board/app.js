@@ -1,4 +1,4 @@
-import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,voyageNotes,neighboringVoyages,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=12';
+import {defaults,statusNames,today,readState,stateQuery,dateRange,filterRows,rowStatus,movementMoment,dateLabel,dateTimeLabel,voyageEndpoints,voyageNotes,neighboringVoyages,formatDate,formatTimestamp,parseDisplayDate,sourceNotices,boardNotices} from './model.mjs?v=13';
 const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const colors={'ПЛП':'#087fc0','ПКТ':'#288b58','КТСП':'#8652b9','КМТП':'#008ba2','БСК':'#ce7c00','БРОНКА':'#bd623b','СТ':'#526e88'};
